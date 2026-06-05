@@ -20,11 +20,13 @@ function toPhase(stage, group) {
     const g = (group || 'GROUP_A').replace('GROUP_', '').toLowerCase();
     return `group_${g}`;
   }
-  return {
+  const phase = {
     ROUND_OF_32: 'r32', ROUND_OF_16: 'r16',
     QUARTER_FINALS: 'qf', SEMI_FINALS: 'sf',
     THIRD_PLACE: '3rd_place', FINAL: 'final',
-  }[stage] || 'group_a';
+  }[stage];
+  if (!phase) throw new Error(`Unknown stage: ${stage} (group: ${group})`);
+  return phase;
 }
 
 async function main() {
@@ -33,6 +35,10 @@ async function main() {
   });
   if (!res.ok) { console.error(res.status, await res.text()); process.exit(1); }
   const { matches } = await res.json();
+  if (!Array.isArray(matches) || matches.length === 0) {
+    console.error('Unexpected API response: no matches array');
+    process.exit(1);
+  }
 
   const out = matches.map((m, i) => ({
     id: i + 1,

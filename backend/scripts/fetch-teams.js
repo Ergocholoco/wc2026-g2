@@ -24,6 +24,10 @@ async function main() {
   });
   if (!res.ok) { console.error(res.status, await res.text()); process.exit(1); }
   const { teams } = await res.json();
+  if (!Array.isArray(teams) || teams.length === 0) {
+    console.error('Unexpected API response: no teams array');
+    process.exit(1);
+  }
 
   const out = {};
   for (const t of teams) {
