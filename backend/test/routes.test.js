@@ -14,6 +14,10 @@ beforeAll(() => {
   // Seed one player
   db.prepare("INSERT INTO players (name, access_code) VALUES ('Test User', 'abc123')").run();
 
+  // Seed matches into in-memory DB
+  const { seedMatches } = require('../db/seed');
+  seedMatches();
+
   app = require('../index');
 });
 
@@ -44,5 +48,29 @@ describe('POST /api/auth/login', () => {
       .post('/api/auth/login')
       .send({});
     expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /api/matches', () => {
+  it('returns array of matches with locked field', async () => {
+    const res = await request(app).get('/api/matches');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBe(104);
+    expect(res.body[0]).toMatchObject({
+      id: expect.any(Number),
+      phase: expect.any(String),
+      home_team: expect.any(String),
+      away_team: expect.any(String),
+      kickoff_mt: expect.any(String),
+      locked: expect.any(Boolean),
+    });
+  });
+
+  it('filters by phase', async () => {
+    const res = await request(app).get('/api/matches?phase=group_a');
+    expect(res.status).toBe(200);
+    expect(res.body.every(m => m.phase === 'group_a')).toBe(true);
+    expect(res.body.length).toBe(6);
   });
 });

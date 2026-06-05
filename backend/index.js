@@ -12,6 +12,7 @@ seedMatches();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/matches', require('./routes/matches'));
 
 const PORT = process.env.PORT || 3001;
 
