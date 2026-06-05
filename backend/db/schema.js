@@ -43,7 +43,7 @@ function _initSchema(db) {
     CREATE TABLE IF NOT EXISTS predictions (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       player_id    INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-      match_id     INTEGER NOT NULL REFERENCES matches(id),
+      match_id     INTEGER NOT NULL REFERENCES matches(id) ON DELETE RESTRICT,
       home_score   INTEGER NOT NULL,
       away_score   INTEGER NOT NULL,
       submitted_at TEXT    NOT NULL DEFAULT (datetime('now')),
