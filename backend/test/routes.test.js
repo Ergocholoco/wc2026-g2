@@ -38,4 +38,11 @@ describe('POST /api/auth/login', () => {
       .send({ access_code: 'wrong' });
     expect(res.status).toBe(401);
   });
+
+  it('returns 400 when access_code is missing', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({});
+    expect(res.status).toBe(400);
+  });
 });
