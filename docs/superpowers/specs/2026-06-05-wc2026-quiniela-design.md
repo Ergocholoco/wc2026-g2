@@ -138,7 +138,6 @@ Triggered after each newly-finished match is detected by the poller.
 ### Match Predictions
 - Correct winner/draw (result only): **3 pts**
 - Exact score: **8 pts** — awarded in addition to the 3 pts for correct result (**11 pts total** for an exact correct score)
-  - ⚠️ Assumption: these are additive. Confirm with admin before launch.
 
 ### Bonus Picks
 | Pick | Points Each | Count |
