@@ -13,6 +13,7 @@ seedMatches();
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/matches', require('./routes/matches'));
+app.use('/api/predictions', require('./routes/predictions'));
 
 const PORT = process.env.PORT || 3001;
 
