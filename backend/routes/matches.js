@@ -17,4 +17,10 @@ router.get('/', (req, res) => {
   res.json(rows.map(m => ({ ...m, locked: isLocked(m.kickoff_utc) })));
 });
 
+const { TEAMS } = require('../data/teams');
+
+router.get('/teams', (req, res) => {
+  res.json(TEAMS);
+});
+
 module.exports = router;
