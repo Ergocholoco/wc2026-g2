@@ -2,7 +2,7 @@
   "name": "wc2026-quiniela-frontend",
   "version": "0.1.0",
   "scripts": {
-    "dev": "next dev -p 3002",
+    "dev": "next dev -p 3004",
     "build": "next build",
     "start": "next start"
   },
