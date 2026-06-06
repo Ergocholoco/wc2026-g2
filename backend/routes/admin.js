@@ -64,6 +64,12 @@ router.post('/refresh', (req, res) => {
   res.json({ ok: true, message: 'Poll cycle triggered' });
 });
 
+function csvCell(v) {
+  let s = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
 router.get('/export.csv', (req, res) => {
   const db = getDb();
   const players = db.prepare(`
@@ -75,7 +81,7 @@ router.get('/export.csv', (req, res) => {
 
   const lines = ['Rank,Name,Total,Match Pts,Bonus Pts'];
   players.forEach((p, i) => {
-    lines.push(`${i + 1},"${p.name}",${p.tp},${p.mp},${p.bp}`);
+    lines.push(`${i + 1},${csvCell(p.name)},${p.tp},${p.mp},${p.bp}`);
   });
 
   res.setHeader('Content-Type', 'text/csv');
