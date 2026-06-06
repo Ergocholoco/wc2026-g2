@@ -111,3 +111,31 @@ describe('Predictions', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('Bonus Picks', () => {
+  let playerId;
+  beforeAll(async () => {
+    const r = await request(app).post('/api/auth/login').send({ access_code: 'abc123' });
+    playerId = r.body.player_id;
+  });
+
+  it('POST /api/bonus saves a bonus pick', async () => {
+    const res = await request(app).post('/api/bonus').send({
+      player_id: playerId, pick_type: 'champion', team_code: 'BRA',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('POST /api/bonus rejects duplicate team in same category', async () => {
+    await request(app).post('/api/bonus').send({ player_id: playerId, pick_type: 'quarterfinalist_1', team_code: 'ARG' });
+    const res = await request(app).post('/api/bonus').send({ player_id: playerId, pick_type: 'quarterfinalist_2', team_code: 'ARG' });
+    expect(res.status).toBe(409);
+  });
+
+  it('GET /api/bonus?player_id returns all bonus picks', async () => {
+    const res = await request(app).get(`/api/bonus?player_id=${playerId}`);
+    expect(res.status).toBe(200);
+    expect(res.body.some(p => p.pick_type === 'champion' && p.team_code === 'BRA')).toBe(true);
+  });
+});
