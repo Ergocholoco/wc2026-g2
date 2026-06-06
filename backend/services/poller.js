@@ -156,7 +156,7 @@ async function scoreKnockoutBonusIfComplete(db) {
     const teamCodes = ['champion', 'third_place'].includes(bonusCategory)
       ? [winners[0]] : winners;
 
-    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes VALUES (?,?)`).run(bonusCategory, JSON.stringify(teamCodes));
+    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES (?,?)`).run(bonusCategory, JSON.stringify(teamCodes));
     db.prepare(`UPDATE bonus_picks SET locked=1 WHERE pick_type LIKE ?`).run(
       bonusCategory === 'champion' ? 'champion' :
       bonusCategory === 'third_place' ? 'third_place' :
