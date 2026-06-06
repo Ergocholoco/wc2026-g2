@@ -21,7 +21,8 @@ function toPhase(stage, group) {
     return `group_${g}`;
   }
   const phase = {
-    ROUND_OF_32: 'r32', ROUND_OF_16: 'r16',
+    LAST_32: 'r32', ROUND_OF_32: 'r32',
+    LAST_16: 'r16', ROUND_OF_16: 'r16',
     QUARTER_FINALS: 'qf', SEMI_FINALS: 'sf',
     THIRD_PLACE: '3rd_place', FINAL: 'final',
   }[stage];

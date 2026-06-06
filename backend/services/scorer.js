@@ -4,10 +4,37 @@ function scoreMatchPrediction(predictedHome, predictedAway, actualHome, actualAw
   const predResult = Math.sign(predictedHome - predictedAway);
   const actualResult = Math.sign(actualHome - actualAway);
   if (predResult !== actualResult) return 0;
-  return predictedHome === actualHome && predictedAway === actualAway ? 11 : 3;
+
+  if ((process.env.SCORING_MODE || 'standard') === 'advanced') {
+    let pts = 4;
+    const homeWins = actualResult > 0;
+    const isDraw   = actualResult === 0;
+    if (isDraw) {
+      if (predictedHome === actualHome) pts += 2;
+      if (predictedAway === actualAway) pts += 2;
+    } else {
+      const predWinner = homeWins ? predictedHome : predictedAway;
+      const predLoser  = homeWins ? predictedAway : predictedHome;
+      const actWinner  = homeWins ? actualHome    : actualAway;
+      const actLoser   = homeWins ? actualAway    : actualHome;
+      if (predWinner === actWinner) pts += 2;
+      if (predLoser  === actLoser)  pts += 2;
+    }
+    return pts;
+  }
+
+  return predictedHome === actualHome && predictedAway === actualAway ? 5 : 2;
 }
 
 function bonusPointsForType(pickType) {
+  if ((process.env.SCORING_MODE || 'standard') === 'advanced') {
+    if (pickType === 'champion')  return 20;
+    if (pickType === 'runner_up') return 15;
+    if (pickType === 'third_place')  return 10;
+    if (pickType === 'fourth_place') return 5;
+    if (pickType.startsWith('r16_team_')) return 2;
+    return 0;
+  }
   if (pickType === 'champion') return 25;
   if (pickType === 'third_place') return 12;
   if (pickType.startsWith('finalist_')) return 15;
@@ -66,11 +93,11 @@ function scorePhaseBonus(pickCategory) {
 }
 
 function pickCategory(pickType) {
-  if (['champion', 'third_place'].includes(pickType)) return pickType;
+  if (['champion', 'third_place', 'runner_up', 'fourth_place'].includes(pickType)) return pickType;
   if (pickType.startsWith('finalist_')) return 'finalists';
   if (pickType.startsWith('semifinalist_')) return 'semifinalists';
   if (pickType.startsWith('quarterfinalist_')) return 'quarterfinalists';
-  // group_a_1st / group_a_2nd → exact key
+  if (pickType.startsWith('r16_team_')) return 'r16';
   return pickType;
 }
 
@@ -78,6 +105,7 @@ function _categoryLike(cat) {
   if (cat === 'finalists') return 'finalist_%';
   if (cat === 'semifinalists') return 'semifinalist_%';
   if (cat === 'quarterfinalists') return 'quarterfinalist_%';
+  if (cat === 'r16') return 'r16_team_%';
   return cat;
 }
 

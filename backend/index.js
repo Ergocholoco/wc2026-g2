@@ -17,8 +17,9 @@ app.use('/api/predictions', require('./routes/predictions'));
 app.use('/api/bonus', require('./routes/bonus'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/config', require('./routes/config'));
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3003;
 
 // Only listen when run directly (not during tests)
 if (require.main === module) {

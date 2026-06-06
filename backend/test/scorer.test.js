@@ -16,27 +16,56 @@ beforeEach(() => {
   _setDb(db);
 });
 
-// --- scoreMatchPrediction ---
-describe('scoreMatchPrediction', () => {
+// --- scoreMatchPrediction (standard mode) ---
+describe('scoreMatchPrediction — standard', () => {
+  beforeEach(() => { process.env.SCORING_MODE = 'standard'; });
+  afterEach(() => { delete process.env.SCORING_MODE; });
+
   it('returns 0 for wrong result', () => {
-    expect(scoreMatchPrediction(1, 0, 0, 1)).toBe(0); // predicted home win, actual away win
+    expect(scoreMatchPrediction(1, 0, 0, 1)).toBe(0);
   });
-
-  it('returns 3 for correct result only', () => {
-    expect(scoreMatchPrediction(2, 0, 1, 0)).toBe(3); // both home wins, different scores
+  it('returns 2 for correct result only', () => {
+    expect(scoreMatchPrediction(2, 0, 1, 0)).toBe(2);
   });
-
-  it('returns 3 for correct draw result', () => {
-    expect(scoreMatchPrediction(1, 1, 2, 2)).toBe(3); // both draws
+  it('returns 2 for correct draw result', () => {
+    expect(scoreMatchPrediction(1, 1, 2, 2)).toBe(2);
   });
-
-  it('returns 11 for exact score', () => {
-    expect(scoreMatchPrediction(2, 1, 2, 1)).toBe(11); // 3 + 8
+  it('returns 5 for exact score', () => {
+    expect(scoreMatchPrediction(2, 1, 2, 1)).toBe(5);
   });
+  it('returns 5 for exact draw score', () => {
+    expect(scoreMatchPrediction(1, 1, 1, 1)).toBe(5);
+  });
+});
 
-  it('returns 0 for correct score but wrong result is impossible by definition', () => {
-    // 1-1 predicted vs 1-1 actual = draw, 11 pts
-    expect(scoreMatchPrediction(1, 1, 1, 1)).toBe(11);
+// --- scoreMatchPrediction (advanced mode) ---
+describe('scoreMatchPrediction — advanced', () => {
+  beforeEach(() => { process.env.SCORING_MODE = 'advanced'; });
+  afterEach(() => { delete process.env.SCORING_MODE; });
+
+  it('returns 0 for wrong result', () => {
+    expect(scoreMatchPrediction(1, 0, 0, 1)).toBe(0);
+  });
+  it('returns 4 for correct outcome only', () => {
+    expect(scoreMatchPrediction(3, 1, 1, 0)).toBe(4); // home win, neither goal matches
+  });
+  it('returns 6 for correct outcome + winner goals', () => {
+    expect(scoreMatchPrediction(2, 0, 2, 1)).toBe(6); // winner score right (2), loser wrong
+  });
+  it('returns 6 for correct outcome + loser goals', () => {
+    expect(scoreMatchPrediction(3, 1, 2, 1)).toBe(6); // loser score right (1), winner wrong
+  });
+  it('returns 8 for exact score (win)', () => {
+    expect(scoreMatchPrediction(2, 1, 2, 1)).toBe(8);
+  });
+  it('returns 8 for exact draw score', () => {
+    expect(scoreMatchPrediction(1, 1, 1, 1)).toBe(8);
+  });
+  it('returns 4 for correct draw, wrong goals', () => {
+    expect(scoreMatchPrediction(0, 0, 1, 1)).toBe(4);
+  });
+  it('returns 4 for correct draw with wrong goals', () => {
+    expect(scoreMatchPrediction(0, 0, 1, 1)).toBe(4); // both draws, goals all wrong
   });
 });
 
@@ -64,19 +93,19 @@ describe('refreshPlayerScore', () => {
     db.prepare("INSERT INTO scores_cache (player_id,total_points,match_points,bonus_points) VALUES (1,0,0,0)").run();
   });
 
-  it('scores 11 pts for exact prediction', () => {
+  it('scores 5 pts for exact prediction', () => {
     db.prepare("INSERT INTO predictions (player_id,match_id,home_score,away_score,locked) VALUES (1,1,2,1,1)").run();
     refreshPlayerScore(1);
     const row = db.prepare('SELECT * FROM scores_cache WHERE player_id=1').get();
-    expect(row.match_points).toBe(11);
-    expect(row.total_points).toBe(11);
+    expect(row.match_points).toBe(5);
+    expect(row.total_points).toBe(5);
   });
 
-  it('scores 3 pts for correct result only', () => {
+  it('scores 2 pts for correct result only', () => {
     db.prepare("INSERT INTO predictions (player_id,match_id,home_score,away_score,locked) VALUES (1,1,3,0,1)").run();
     refreshPlayerScore(1);
     const row = db.prepare('SELECT * FROM scores_cache WHERE player_id=1').get();
-    expect(row.match_points).toBe(3);
+    expect(row.match_points).toBe(2);
   });
 
   it('scores 0 for unlocked predictions', () => {

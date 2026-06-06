@@ -1,53 +1,196 @@
-// PLACEHOLDER — run scripts/fetch-teams.js once a valid FOOTBALL_API_KEY is available
-// WC 2026 features 48 teams across 12 groups (A–L)
+// Auto-generated 2026-06-06T06:29:36.915Z — do not edit manually
 const TEAMS = {
-  "ARG": { "name": "Argentina", "flag": "🇦🇷" },
-  "AUS": { "name": "Australia", "flag": "🇦🇺" },
-  "BEL": { "name": "Belgium", "flag": "🇧🇪" },
-  "BRA": { "name": "Brazil", "flag": "🇧🇷" },
-  "CMR": { "name": "Cameroon", "flag": "🇨🇲" },
-  "CAN": { "name": "Canada", "flag": "🇨🇦" },
-  "CHI": { "name": "Chile", "flag": "🇨🇱" },
-  "COL": { "name": "Colombia", "flag": "🇨🇴" },
-  "CRC": { "name": "Costa Rica", "flag": "🇨🇷" },
-  "CRO": { "name": "Croatia", "flag": "🇭🇷" },
-  "DEN": { "name": "Denmark", "flag": "🇩🇰" },
-  "ECU": { "name": "Ecuador", "flag": "🇪🇨" },
-  "EGY": { "name": "Egypt", "flag": "🇪🇬" },
-  "ENG": { "name": "England", "flag": "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
-  "FRA": { "name": "France", "flag": "🇫🇷" },
-  "GER": { "name": "Germany", "flag": "🇩🇪" },
-  "GHA": { "name": "Ghana", "flag": "🇬🇭" },
-  "IRN": { "name": "Iran", "flag": "🇮🇷" },
-  "ITA": { "name": "Italy", "flag": "🇮🇹" },
-  "JAM": { "name": "Jamaica", "flag": "🇯🇲" },
-  "JPN": { "name": "Japan", "flag": "🇯🇵" },
-  "KOR": { "name": "South Korea", "flag": "🇰🇷" },
-  "MAR": { "name": "Morocco", "flag": "🇲🇦" },
-  "MEX": { "name": "Mexico", "flag": "🇲🇽" },
-  "NED": { "name": "Netherlands", "flag": "🇳🇱" },
-  "NGA": { "name": "Nigeria", "flag": "🇳🇬" },
-  "NZL": { "name": "New Zealand", "flag": "🇳🇿" },
-  "PAR": { "name": "Paraguay", "flag": "🇵🇾" },
-  "PER": { "name": "Peru", "flag": "🇵🇪" },
-  "POL": { "name": "Poland", "flag": "🇵🇱" },
-  "POR": { "name": "Portugal", "flag": "🇵🇹" },
-  "QAT": { "name": "Qatar", "flag": "🇶🇦" },
-  "RSA": { "name": "South Africa", "flag": "🇿🇦" },
-  "SEN": { "name": "Senegal", "flag": "🇸🇳" },
-  "SRB": { "name": "Serbia", "flag": "🇷🇸" },
-  "ESP": { "name": "Spain", "flag": "🇪🇸" },
-  "SUI": { "name": "Switzerland", "flag": "🇨🇭" },
-  "TUN": { "name": "Tunisia", "flag": "🇹🇳" },
-  "URU": { "name": "Uruguay", "flag": "🇺🇾" },
-  "USA": { "name": "United States", "flag": "🇺🇸" },
-  "VEN": { "name": "Venezuela", "flag": "🇻🇪" },
-  "WAL": { "name": "Wales", "flag": "🏴󠁧󠁢󠁷󠁬󠁳󠁿" },
-  "PAN": { "name": "Panama", "flag": "🇵🇦" },
-  "HON": { "name": "Honduras", "flag": "🇭🇳" },
-  "BOL": { "name": "Bolivia", "flag": "🇧🇴" },
-  "TRI": { "name": "Trinidad & Tobago", "flag": "🇹🇹" },
-  "SAU": { "name": "Saudi Arabia", "flag": "🇸🇦" },
-  "ALG": { "name": "Algeria", "flag": "🇩🇿" }
+  "URY": {
+    "name": "Uruguay",
+    "flag": "🇺🇾"
+  },
+  "GER": {
+    "name": "Germany",
+    "flag": "🇩🇪"
+  },
+  "ESP": {
+    "name": "Spain",
+    "flag": "🇪🇸"
+  },
+  "PAR": {
+    "name": "Paraguay",
+    "flag": "🇵🇾"
+  },
+  "ARG": {
+    "name": "Argentina",
+    "flag": "🇦🇷"
+  },
+  "GHA": {
+    "name": "Ghana",
+    "flag": "🇬🇭"
+  },
+  "BRA": {
+    "name": "Brazil",
+    "flag": "🇧🇷"
+  },
+  "POR": {
+    "name": "Portugal",
+    "flag": "🇵🇹"
+  },
+  "JPN": {
+    "name": "Japan",
+    "flag": "🇯🇵"
+  },
+  "MEX": {
+    "name": "Mexico",
+    "flag": "🇲🇽"
+  },
+  "ENG": {
+    "name": "England",
+    "flag": "🏴󠁧󠁢󠁥󠁮󠁧󠁿"
+  },
+  "USA": {
+    "name": "USA",
+    "flag": "🇺🇸"
+  },
+  "KOR": {
+    "name": "Korea Republic",
+    "flag": "🇰🇷"
+  },
+  "FRA": {
+    "name": "France",
+    "flag": "🇫🇷"
+  },
+  "RSA": {
+    "name": "South Africa",
+    "flag": "🇿🇦"
+  },
+  "ALG": {
+    "name": "Algeria",
+    "flag": "🇩🇿"
+  },
+  "AUS": {
+    "name": "Australia",
+    "flag": "🇦🇺"
+  },
+  "NZL": {
+    "name": "New Zealand",
+    "flag": "🇳🇿"
+  },
+  "SUI": {
+    "name": "Switzerland",
+    "flag": "🇨🇭"
+  },
+  "ECU": {
+    "name": "Ecuador",
+    "flag": "🇪🇨"
+  },
+  "SWE": {
+    "name": "Sweden",
+    "flag": "🇸🇪"
+  },
+  "CZE": {
+    "name": "Czechia",
+    "flag": "🇨🇿"
+  },
+  "CRO": {
+    "name": "Croatia",
+    "flag": "🇭🇷"
+  },
+  "KSA": {
+    "name": "Saudi Arabia",
+    "flag": "🇸🇦"
+  },
+  "TUN": {
+    "name": "Tunisia",
+    "flag": "🇹🇳"
+  },
+  "TUR": {
+    "name": "Turkey",
+    "flag": "🇹🇷"
+  },
+  "SEN": {
+    "name": "Senegal",
+    "flag": "🇸🇳"
+  },
+  "BEL": {
+    "name": "Belgium",
+    "flag": "🇧🇪"
+  },
+  "MAR": {
+    "name": "Morocco",
+    "flag": "🇲🇦"
+  },
+  "AUT": {
+    "name": "Austria",
+    "flag": "🇦🇹"
+  },
+  "COL": {
+    "name": "Colombia",
+    "flag": "🇨🇴"
+  },
+  "EGY": {
+    "name": "Egypt",
+    "flag": "🇪🇬"
+  },
+  "CAN": {
+    "name": "Canada",
+    "flag": "🇨🇦"
+  },
+  "HAI": {
+    "name": "Haiti",
+    "flag": "🇭🇹"
+  },
+  "IRN": {
+    "name": "Iran",
+    "flag": "🇮🇷"
+  },
+  "BIH": {
+    "name": "Bosnia-H.",
+    "flag": "🇧🇦"
+  },
+  "PAN": {
+    "name": "Panama",
+    "flag": "🇵🇦"
+  },
+  "CPV": {
+    "name": "Cape Verde",
+    "flag": "🇨🇻"
+  },
+  "COD": {
+    "name": "Congo DR",
+    "flag": "🇨🇩"
+  },
+  "CIV": {
+    "name": "Ivory Coast",
+    "flag": "🇨🇮"
+  },
+  "QAT": {
+    "name": "Qatar",
+    "flag": "🇶🇦"
+  },
+  "JOR": {
+    "name": "Jordan",
+    "flag": "🇯🇴"
+  },
+  "IRQ": {
+    "name": "Iraq",
+    "flag": "🇮🇶"
+  },
+  "UZB": {
+    "name": "Uzbekistan",
+    "flag": "🇺🇿"
+  },
+  "NED": {
+    "name": "Netherlands",
+    "flag": "🇳🇱"
+  },
+  "NOR": {
+    "name": "Norway",
+    "flag": "🇳🇴"
+  },
+  "SCO": {
+    "name": "Scotland",
+    "flag": "🏴󠁧󠁢󠁳󠁣󠁴󠁿"
+  },
+  "CUW": {
+    "name": "Curaçao",
+    "flag": "🇨🇼"
+  }
 };
 module.exports = { TEAMS };

@@ -129,6 +129,10 @@ async function scoreGroupBonusIfComplete(db) {
 }
 
 async function scoreKnockoutBonusIfComplete(db) {
+  if ((process.env.SCORING_MODE || 'standard') === 'advanced') {
+    return scoreAdvancedBonusIfComplete(db);
+  }
+
   const phases = [
     { dbPhase: 'r16',       bonusCategory: 'quarterfinalists', matchCount: 8 },
     { dbPhase: 'qf',        bonusCategory: 'semifinalists',    matchCount: 4 },
@@ -163,6 +167,46 @@ async function scoreKnockoutBonusIfComplete(db) {
       `${bonusCategory.replace(/s$/, '')}_%`
     );
     scorePhaseBonus(bonusCategory);
+  }
+}
+
+async function scoreAdvancedBonusIfComplete(db) {
+  // R16 teams: winners of all 16 R32 matches
+  const r32Finished = db.prepare(
+    `SELECT SUM(CASE WHEN status='FINISHED' THEN 1 ELSE 0 END) AS c FROM matches WHERE phase='r32'`
+  ).get().c || 0;
+  if (r32Finished >= 16 && !db.prepare(`SELECT 1 FROM bonus_outcomes WHERE pick_category='r16'`).get()) {
+    const r16Teams = db.prepare(`
+      SELECT CASE WHEN home_score > away_score THEN home_team ELSE away_team END AS winner
+      FROM matches WHERE phase='r32' AND status='FINISHED'
+    `).all().map(r => r.winner);
+    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('r16',?)`).run(JSON.stringify(r16Teams));
+    db.prepare(`UPDATE bonus_picks SET locked=1 WHERE pick_type LIKE 'r16_team_%'`).run();
+    scorePhaseBonus('r16');
+  }
+
+  // Champion + runner-up from final
+  const finalMatch = db.prepare(`SELECT * FROM matches WHERE phase='final' AND status='FINISHED'`).get();
+  if (finalMatch && !db.prepare(`SELECT 1 FROM bonus_outcomes WHERE pick_category='champion'`).get()) {
+    const champion = finalMatch.home_score > finalMatch.away_score ? finalMatch.home_team : finalMatch.away_team;
+    const runnerUp = finalMatch.home_score > finalMatch.away_score ? finalMatch.away_team : finalMatch.home_team;
+    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('champion',?)`).run(JSON.stringify([champion]));
+    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('runner_up',?)`).run(JSON.stringify([runnerUp]));
+    db.prepare(`UPDATE bonus_picks SET locked=1 WHERE pick_type='champion' OR pick_type='runner_up'`).run();
+    scorePhaseBonus('champion');
+    scorePhaseBonus('runner_up');
+  }
+
+  // 3rd + 4th place from 3rd-place match
+  const match3 = db.prepare(`SELECT * FROM matches WHERE phase='3rd_place' AND status='FINISHED'`).get();
+  if (match3 && !db.prepare(`SELECT 1 FROM bonus_outcomes WHERE pick_category='third_place'`).get()) {
+    const third  = match3.home_score > match3.away_score ? match3.home_team : match3.away_team;
+    const fourth = match3.home_score > match3.away_score ? match3.away_team : match3.home_team;
+    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('third_place',?)`).run(JSON.stringify([third]));
+    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('fourth_place',?)`).run(JSON.stringify([fourth]));
+    db.prepare(`UPDATE bonus_picks SET locked=1 WHERE pick_type='third_place' OR pick_type='fourth_place'`).run();
+    scorePhaseBonus('third_place');
+    scorePhaseBonus('fourth_place');
   }
 }
 

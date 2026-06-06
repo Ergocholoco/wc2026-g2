@@ -124,3 +124,15 @@ export function triggerAdminRefresh() {
     headers: adminHeaders(),
   });
 }
+
+export interface AppConfig {
+  scoringMode: 'standard' | 'advanced';
+  prizes: { first: number | null; second: number | null; third: number | null; entryFee: number | null };
+}
+
+let _config: AppConfig | null = null;
+export async function getConfig(): Promise<AppConfig> {
+  if (_config) return _config;
+  _config = await apiFetch<AppConfig>('/api/config');
+  return _config;
+}

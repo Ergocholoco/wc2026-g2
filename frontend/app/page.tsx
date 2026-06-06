@@ -4,6 +4,7 @@ import { getPlayer } from '@/lib/auth';
 import { getLeaderboard, LeaderboardEntry } from '@/lib/api';
 import LoginGate from '@/components/LoginGate';
 import LeaderboardCard from '@/components/LeaderboardCard';
+import ScoringGuide from '@/components/ScoringGuide';
 
 export default function Home() {
   const [player, setPlayerState] = useState<{ player_id: number; name: string } | null>(null);
@@ -58,6 +59,8 @@ export default function Home() {
           ))}
         </div>
       )}
+
+      <ScoringGuide />
     </div>
   );
 }

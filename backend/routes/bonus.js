@@ -6,6 +6,7 @@ function category(pickType) {
   if (pickType.startsWith('finalist_')) return 'finalist';
   if (pickType.startsWith('semifinalist_')) return 'semifinalist';
   if (pickType.startsWith('quarterfinalist_')) return 'quarterfinalist';
+  if (pickType.startsWith('r16_team_')) return 'r16_team';
   return pickType;
 }
 
@@ -20,9 +21,18 @@ function isBonusLocked(pickType) {
     if (!lastMatch) return false;
     return Date.now() >= new Date(lastMatch.kickoff_utc).getTime() - 60 * 60 * 1000;
   }
+  // advanced mode: r16 picks lock before first R32 match
+  if (pickType.startsWith('r16_team_')) {
+    const firstMatch = db.prepare(
+      `SELECT kickoff_utc FROM matches WHERE phase='r32' ORDER BY kickoff_utc ASC LIMIT 1`
+    ).get();
+    if (!firstMatch) return false;
+    return Date.now() >= new Date(firstMatch.kickoff_utc).getTime() - 60 * 60 * 1000;
+  }
   const phaseMap = {
     quarterfinalist: 'r32', semifinalist: 'r16',
     finalist: 'qf', champion: 'final', third_place: '3rd_place',
+    runner_up: 'final', fourth_place: '3rd_place',
   };
   const cat = category(pickType);
   const phase = phaseMap[cat];
