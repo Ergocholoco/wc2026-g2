@@ -22,7 +22,13 @@ const PORT = process.env.PORT || 3001;
 
 // Only listen when run directly (not during tests)
 if (require.main === module) {
+  const { startPoller } = require('./services/poller');
+  startPoller();
   app.listen(PORT, () => console.log(`Backend running on :${PORT}`));
 }
+
+app.stopPoller = () => {
+  try { require('./services/poller').stopPoller(); } catch {}
+};
 
 module.exports = app;
