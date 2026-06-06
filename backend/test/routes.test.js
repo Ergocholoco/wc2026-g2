@@ -1,24 +1,32 @@
 const request = require('supertest');
-const Database = require('better-sqlite3');
-const { _setDb, _initSchema } = require('../db/schema');
+const { newDb } = require('pg-mem');
+const { _setPool, query } = require('../db/schema');
 
 let app;
 
-beforeAll(() => {
-  // Use in-memory DB for tests
-  const db = new Database(':memory:');
-  db.pragma('foreign_keys = ON');
-  _initSchema(db);
-  _setDb(db);
+function registerSubstr(memDb) {
+  memDb.public.registerFunction({
+    name: 'substr',
+    args: ['text', 'int', 'int'],
+    returns: 'text',
+    implementation: (s, a, b) => String(s).substr(a - 1, b),
+  });
+}
+
+beforeAll(async () => {
+  const memDb = newDb();
+  registerSubstr(memDb);
+  const { Pool } = memDb.adapters.createPg();
+  _setPool(new Pool());
+
+  // index.js's startup (app.ready) runs seedMatches(), which calls initSchema()
+  // — don't call initSchema() here too, pg-mem chokes on a repeated
+  // CREATE TABLE IF NOT EXISTS against tables that already exist.
+  app = require('../index');
+  await app.ready;
 
   // Seed one player
-  db.prepare("INSERT INTO players (name, access_code) VALUES ('Test User', 'abc123')").run();
-
-  // Seed matches into in-memory DB
-  const { seedMatches } = require('../db/seed');
-  seedMatches();
-
-  app = require('../index');
+  await query("INSERT INTO players (name, access_code) VALUES ('Test User', 'abc123')");
 });
 
 afterAll(() => {
@@ -99,11 +107,15 @@ describe('Predictions', () => {
 
   it('POST /api/predictions rejects locked match', async () => {
     // Insert a match that's already past lock time
-    const { getDb } = require('../db/schema');
-    getDb().prepare(`
-      INSERT OR REPLACE INTO matches (id,phase,match_day,home_team,away_team,kickoff_utc,kickoff_mt,status)
+    await query(`
+      INSERT INTO matches (id,phase,match_day,home_team,away_team,kickoff_utc,kickoff_mt,status)
       VALUES (999,'group_a',1,'USA','CAN','2020-01-01T00:00:00Z','Jan 1, 2020','SCHEDULED')
-    `).run();
+      ON CONFLICT (id) DO UPDATE SET
+        phase = EXCLUDED.phase, match_day = EXCLUDED.match_day,
+        home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team,
+        kickoff_utc = EXCLUDED.kickoff_utc, kickoff_mt = EXCLUDED.kickoff_mt,
+        status = EXCLUDED.status
+    `);
 
     const res = await request(app).post('/api/predictions').send({
       player_id: playerId, match_id: 999, home_score: 1, away_score: 0,

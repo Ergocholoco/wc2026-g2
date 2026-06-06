@@ -1,16 +1,20 @@
-const { getDb } = require('./schema');
+const { query, initSchema } = require('./schema');
 const { MATCHES } = require('../data/matches');
 
-function seedMatches() {
-  const db = getDb();
-  const { c } = db.prepare('SELECT COUNT(*) AS c FROM matches').get();
-  if (c > 0) return;
+async function seedMatches() {
+  await initSchema();
 
-  const insert = db.prepare(`
-    INSERT INTO matches (id, phase, match_day, home_team, away_team, kickoff_utc, kickoff_mt, fd_match_id)
-    VALUES (@id, @phase, @match_day, @home_team, @away_team, @kickoff_utc, @kickoff_mt, @fd_match_id)
-  `);
-  db.transaction(ms => ms.forEach(m => insert.run(m)))(MATCHES);
+  const { rows } = await query('SELECT COUNT(*)::int AS c FROM matches');
+  if (rows[0].c > 0) return;
+
+  for (const m of MATCHES) {
+    await query(
+      `INSERT INTO matches (id, phase, match_day, home_team, away_team, kickoff_utc, kickoff_mt, fd_match_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (id) DO NOTHING`,
+      [m.id, m.phase, m.match_day, m.home_team, m.away_team, m.kickoff_utc, m.kickoff_mt, m.fd_match_id]
+    );
+  }
   console.log(`Seeded ${MATCHES.length} matches`);
 }
 

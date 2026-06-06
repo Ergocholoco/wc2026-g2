@@ -1,4 +1,4 @@
-const { getDb } = require('../db/schema');
+const { query } = require('../db/schema');
 
 function scoreMatchPrediction(predictedHome, predictedAway, actualHome, actualAway) {
   const predResult = Math.sign(predictedHome - predictedAway);
@@ -45,51 +45,53 @@ function bonusPointsForType(pickType) {
   return 0;
 }
 
-function refreshPlayerScore(playerId) {
-  const db = getDb();
-
-  const preds = db.prepare(`
+async function refreshPlayerScore(playerId) {
+  const { rows: preds } = await query(`
     SELECT p.home_score ph, p.away_score pa, m.home_score ah, m.away_score aa
     FROM predictions p JOIN matches m ON m.id = p.match_id
-    WHERE p.player_id = ? AND p.locked = 1 AND m.status = 'FINISHED'
-  `).all(playerId);
+    WHERE p.player_id = $1 AND p.locked = 1 AND m.status = 'FINISHED'
+  `, [playerId]);
 
   const matchPoints = preds.reduce(
     (sum, p) => sum + scoreMatchPrediction(p.ph, p.pa, p.ah, p.aa), 0
   );
 
-  const bonusPicks = db.prepare(
-    `SELECT pick_type, team_code FROM bonus_picks WHERE player_id = ? AND locked = 1`
-  ).all(playerId);
+  const { rows: bonusPicks } = await query(
+    `SELECT pick_type, team_code FROM bonus_picks WHERE player_id = $1 AND locked = 1`,
+    [playerId]
+  );
 
   let bonusPoints = 0;
   for (const pick of bonusPicks) {
-    const outcome = db.prepare(
-      `SELECT actual_teams_json FROM bonus_outcomes WHERE pick_category = ?`
-    ).get(pickCategory(pick.pick_type));
+    const { rows: outcomeRows } = await query(
+      `SELECT actual_teams_json FROM bonus_outcomes WHERE pick_category = $1`,
+      [pickCategory(pick.pick_type)]
+    );
+    const outcome = outcomeRows[0];
     if (!outcome) continue;
     const actual = JSON.parse(outcome.actual_teams_json);
     if (actual.includes(pick.team_code)) bonusPoints += bonusPointsForType(pick.pick_type);
   }
 
   const total = matchPoints + bonusPoints;
-  db.prepare(`
+  await query(`
     INSERT INTO scores_cache (player_id, total_points, match_points, bonus_points, last_calculated)
-    VALUES (?, ?, ?, ?, datetime('now'))
-    ON CONFLICT(player_id) DO UPDATE SET
-      total_points = excluded.total_points,
-      match_points = excluded.match_points,
-      bonus_points = excluded.bonus_points,
-      last_calculated = excluded.last_calculated
-  `).run(playerId, total, matchPoints, bonusPoints);
+    VALUES ($1, $2, $3, $4, NOW())
+    ON CONFLICT (player_id) DO UPDATE SET
+      total_points = EXCLUDED.total_points,
+      match_points = EXCLUDED.match_points,
+      bonus_points = EXCLUDED.bonus_points,
+      last_calculated = EXCLUDED.last_calculated
+  `, [playerId, total, matchPoints, bonusPoints]);
 }
 
 // Re-score all players for a given bonus category after its actual_teams_json is set
-function scorePhaseBonus(pickCategory) {
-  const db = getDb();
-  const players = db.prepare('SELECT DISTINCT player_id FROM bonus_picks WHERE pick_type LIKE ?')
-    .all(_categoryLike(pickCategory));
-  for (const { player_id } of players) refreshPlayerScore(player_id);
+async function scorePhaseBonus(pickCategory) {
+  const { rows: players } = await query(
+    'SELECT DISTINCT player_id FROM bonus_picks WHERE pick_type LIKE $1',
+    [_categoryLike(pickCategory)]
+  );
+  for (const { player_id } of players) await refreshPlayerScore(player_id);
 }
 
 function pickCategory(pickType) {

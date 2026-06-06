@@ -1,26 +1,23 @@
-const Database = require('better-sqlite3');
-const fs = require('fs');
-const path = require('path');
+const { Pool } = require('pg');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../quiniela.db');
-let _db;
+let _pool;
 
-function getDb() {
-  if (!_db) {
-    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-    _db = new Database(DB_PATH);
-    _db.pragma('journal_mode = WAL');
-    _db.pragma('foreign_keys = ON');
-    _initSchema(_db);
+function getPool() {
+  if (!_pool) {
+    _pool = new Pool({ connectionString: process.env.DATABASE_URL });
   }
-  return _db;
+  return _pool;
 }
 
-// Exposed only for tests — lets tests inject an in-memory DB
-function _setDb(db) { _db = db; }
+function query(text, params) {
+  return getPool().query(text, params);
+}
 
-function _initSchema(db) {
-  db.exec(`
+// Exposed only for tests — lets tests inject a mock pool (e.g. pg-mem)
+function _setPool(pool) { _pool = pool; }
+
+async function initSchema() {
+  await query(`
     CREATE TABLE IF NOT EXISTS matches (
       id          INTEGER PRIMARY KEY,
       phase       TEXT    NOT NULL,
@@ -36,25 +33,25 @@ function _initSchema(db) {
     );
 
     CREATE TABLE IF NOT EXISTS players (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      name        TEXT    NOT NULL,
-      access_code TEXT    UNIQUE NOT NULL,
-      created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+      id          SERIAL PRIMARY KEY,
+      name        TEXT   NOT NULL,
+      access_code TEXT   UNIQUE NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS predictions (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      id           SERIAL  PRIMARY KEY,
       player_id    INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
       match_id     INTEGER NOT NULL REFERENCES matches(id) ON DELETE RESTRICT,
       home_score   INTEGER NOT NULL,
       away_score   INTEGER NOT NULL,
-      submitted_at TEXT    NOT NULL DEFAULT (datetime('now')),
+      submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       locked       INTEGER NOT NULL DEFAULT 0,
       UNIQUE(player_id, match_id)
     );
 
     CREATE TABLE IF NOT EXISTS bonus_picks (
-      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      id        SERIAL  PRIMARY KEY,
       player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
       pick_type TEXT    NOT NULL,
       team_code TEXT    NOT NULL,
@@ -63,18 +60,18 @@ function _initSchema(db) {
     );
 
     CREATE TABLE IF NOT EXISTS bonus_outcomes (
-      pick_category       TEXT PRIMARY KEY,
-      actual_teams_json   TEXT NOT NULL DEFAULT '[]'
+      pick_category     TEXT PRIMARY KEY,
+      actual_teams_json TEXT NOT NULL DEFAULT '[]'
     );
 
     CREATE TABLE IF NOT EXISTS scores_cache (
-      player_id     INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
-      total_points  INTEGER NOT NULL DEFAULT 0,
-      match_points  INTEGER NOT NULL DEFAULT 0,
-      bonus_points  INTEGER NOT NULL DEFAULT 0,
-      last_calculated TEXT NOT NULL DEFAULT (datetime('now'))
+      player_id       INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+      total_points    INTEGER NOT NULL DEFAULT 0,
+      match_points    INTEGER NOT NULL DEFAULT 0,
+      bonus_points    INTEGER NOT NULL DEFAULT 0,
+      last_calculated TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 }
 
-module.exports = { getDb, _setDb, _initSchema };
+module.exports = { query, getPool, _setPool, initSchema };

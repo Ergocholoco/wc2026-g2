@@ -7,9 +7,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Seed DB on startup
-seedMatches();
-
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/matches', require('./routes/matches'));
@@ -21,12 +18,18 @@ app.use('/api/config', require('./routes/config'));
 
 const PORT = process.env.PORT || 3003;
 
-// Only listen when run directly (not during tests)
-if (require.main === module) {
-  const { startPoller } = require('./services/poller');
-  startPoller();
-  app.listen(PORT, () => console.log(`Backend running on :${PORT}`));
-}
+// Seed DB on startup, then (only when run directly, not during tests) start the
+// poller and listen. `app.ready` lets tests await this before issuing requests.
+app.ready = seedMatches().then(() => {
+  if (require.main === module) {
+    const { startPoller } = require('./services/poller');
+    startPoller();
+    app.listen(PORT, () => console.log(`Backend running on :${PORT}`));
+  }
+}).catch(err => {
+  console.error('Startup failed:', err);
+  process.exit(1);
+});
 
 app.stopPoller = () => {
   try { require('./services/poller').stopPoller(); } catch {}

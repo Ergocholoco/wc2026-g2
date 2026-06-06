@@ -1,4 +1,4 @@
-const { getDb } = require('../db/schema');
+const { query } = require('../db/schema');
 const { refreshPlayerScore, scorePhaseBonus } = require('./scorer');
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
@@ -28,7 +28,6 @@ async function fetchStandings() {
 }
 
 async function pollCycle() {
-  const db = getDb();
   let apiMatches;
   try {
     apiMatches = await fetchMatches();
@@ -42,12 +41,12 @@ async function pollCycle() {
   for (const m of apiMatches) {
     if (m.status !== 'FINISHED') {
       if (['LIVE', 'IN_PLAY', 'PAUSED'].includes(m.status)) {
-        db.prepare(`
-          UPDATE matches SET status = ?, fd_match_id = COALESCE(fd_match_id, ?)
-          WHERE fd_match_id = ? OR (
-            home_team = ? AND away_team = ? AND substr(kickoff_utc,1,10) = substr(?,1,10)
+        await query(`
+          UPDATE matches SET status = $1, fd_match_id = COALESCE(fd_match_id, $2)
+          WHERE fd_match_id = $3 OR (
+            home_team = $4 AND away_team = $5 AND substr(kickoff_utc,1,10) = substr($6,1,10)
           )
-        `).run(m.status, m.id, m.id, m.homeTeam.tla, m.awayTeam.tla, m.utcDate);
+        `, [m.status, m.id, m.id, m.homeTeam.tla, m.awayTeam.tla, m.utcDate]);
       }
       continue;
     }
@@ -55,53 +54,58 @@ async function pollCycle() {
     const score = m.score?.fullTime;
     if (score?.home == null || score?.away == null) continue;
 
-    let dbMatch = db.prepare('SELECT * FROM matches WHERE fd_match_id = ?').get(m.id);
+    let dbMatch = (await query('SELECT * FROM matches WHERE fd_match_id = $1', [m.id])).rows[0];
     if (!dbMatch) {
-      dbMatch = db.prepare(`
+      dbMatch = (await query(`
         SELECT * FROM matches
-        WHERE home_team = ? AND away_team = ? AND substr(kickoff_utc,1,10) = substr(?,1,10)
-      `).get(m.homeTeam.tla, m.awayTeam.tla, m.utcDate);
+        WHERE home_team = $1 AND away_team = $2 AND substr(kickoff_utc,1,10) = substr($3,1,10)
+      `, [m.homeTeam.tla, m.awayTeam.tla, m.utcDate])).rows[0];
     }
     if (!dbMatch) continue;
 
     if (dbMatch.status === 'FINISHED' && dbMatch.home_score != null) continue;
 
-    db.prepare(`
-      UPDATE matches SET status='FINISHED', home_score=?, away_score=?, fd_match_id=?
-      WHERE id=?
-    `).run(score.home, score.away, m.id, dbMatch.id);
+    await query(`
+      UPDATE matches SET status='FINISHED', home_score=$1, away_score=$2, fd_match_id=$3
+      WHERE id=$4
+    `, [score.home, score.away, m.id, dbMatch.id]);
 
-    db.prepare(`UPDATE predictions SET locked=1 WHERE match_id=?`).run(dbMatch.id);
+    await query(`UPDATE predictions SET locked=1 WHERE match_id=$1`, [dbMatch.id]);
 
     finishedMatchIds.add(dbMatch.id);
   }
 
   if (finishedMatchIds.size === 0) return;
 
-  const affectedPlayers = db.prepare(`
-    SELECT DISTINCT player_id FROM predictions WHERE match_id IN (${[...finishedMatchIds].map(() => '?').join(',')})
-  `).all(...finishedMatchIds);
+  const ids = [...finishedMatchIds];
+  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+  const { rows: affectedPlayers } = await query(
+    `SELECT DISTINCT player_id FROM predictions WHERE match_id IN (${placeholders})`,
+    ids
+  );
 
-  for (const { player_id } of affectedPlayers) refreshPlayerScore(player_id);
+  for (const { player_id } of affectedPlayers) await refreshPlayerScore(player_id);
 
-  await scoreGroupBonusIfComplete(db);
-  await scoreKnockoutBonusIfComplete(db);
+  await scoreGroupBonusIfComplete();
+  await scoreKnockoutBonusIfComplete();
 }
 
-async function scoreGroupBonusIfComplete(db) {
+async function scoreGroupBonusIfComplete() {
   const groups = ['a','b','c','d','e','f','g','h','i','j','k','l'];
   for (const g of groups) {
     const phase = `group_${g}`;
-    const { total, finished } = db.prepare(`
-      SELECT COUNT(*) AS total,
-             SUM(CASE WHEN status='FINISHED' THEN 1 ELSE 0 END) AS finished
-      FROM matches WHERE phase=?
-    `).get(phase);
+    const { rows } = await query(`
+      SELECT COUNT(*)::int AS total,
+             SUM(CASE WHEN status='FINISHED' THEN 1 ELSE 0 END)::int AS finished
+      FROM matches WHERE phase=$1
+    `, [phase]);
+    const { total, finished } = rows[0];
     if (total === 0 || finished < total) continue;
 
-    const alreadyScored = db.prepare(
-      `SELECT 1 FROM bonus_outcomes WHERE pick_category=?`
-    ).get(`group_${g}_1st`);
+    const alreadyScored = (await query(
+      `SELECT 1 FROM bonus_outcomes WHERE pick_category=$1`,
+      [`group_${g}_1st`]
+    )).rows[0];
     if (alreadyScored) continue;
 
     let standings;
@@ -120,17 +124,21 @@ async function scoreGroupBonusIfComplete(db) {
     const second = sorted[1]?.team?.tla;
     if (!first || !second) continue;
 
-    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES (?,?)`).run(`group_${g}_1st`, JSON.stringify([first]));
-    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES (?,?)`).run(`group_${g}_2nd`, JSON.stringify([second]));
-    db.prepare(`UPDATE bonus_picks SET locked=1 WHERE pick_type=? OR pick_type=?`).run(`group_${g}_1st`, `group_${g}_2nd`);
-    scorePhaseBonus(`group_${g}_1st`);
-    scorePhaseBonus(`group_${g}_2nd`);
+    await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ($1,$2)
+                 ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
+                 [`group_${g}_1st`, JSON.stringify([first])]);
+    await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ($1,$2)
+                 ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
+                 [`group_${g}_2nd`, JSON.stringify([second])]);
+    await query(`UPDATE bonus_picks SET locked=1 WHERE pick_type=$1 OR pick_type=$2`, [`group_${g}_1st`, `group_${g}_2nd`]);
+    await scorePhaseBonus(`group_${g}_1st`);
+    await scorePhaseBonus(`group_${g}_2nd`);
   }
 }
 
-async function scoreKnockoutBonusIfComplete(db) {
+async function scoreKnockoutBonusIfComplete() {
   if ((process.env.SCORING_MODE || 'standard') === 'advanced') {
-    return scoreAdvancedBonusIfComplete(db);
+    return scoreAdvancedBonusIfComplete();
   }
 
   const phases = [
@@ -142,71 +150,91 @@ async function scoreKnockoutBonusIfComplete(db) {
   ];
 
   for (const { dbPhase, bonusCategory, matchCount } of phases) {
-    const { finished } = db.prepare(
-      `SELECT SUM(CASE WHEN status='FINISHED' THEN 1 ELSE 0 END) AS finished FROM matches WHERE phase=?`
-    ).get(dbPhase);
+    const { rows: finishedRows } = await query(
+      `SELECT SUM(CASE WHEN status='FINISHED' THEN 1 ELSE 0 END)::int AS finished FROM matches WHERE phase=$1`,
+      [dbPhase]
+    );
+    const finished = finishedRows[0].finished;
     if ((finished || 0) < matchCount) continue;
 
-    const alreadyScored = db.prepare(
-      `SELECT 1 FROM bonus_outcomes WHERE pick_category=?`
-    ).get(bonusCategory);
+    const alreadyScored = (await query(
+      `SELECT 1 FROM bonus_outcomes WHERE pick_category=$1`,
+      [bonusCategory]
+    )).rows[0];
     if (alreadyScored) continue;
 
-    const winners = db.prepare(`
+    const { rows: winnerRows } = await query(`
       SELECT CASE WHEN home_score > away_score THEN home_team ELSE away_team END AS winner
-      FROM matches WHERE phase=? AND status='FINISHED'
-    `).all(dbPhase).map(r => r.winner);
+      FROM matches WHERE phase=$1 AND status='FINISHED'
+    `, [dbPhase]);
+    const winners = winnerRows.map(r => r.winner);
 
     const teamCodes = ['champion', 'third_place'].includes(bonusCategory)
       ? [winners[0]] : winners;
 
-    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES (?,?)`).run(bonusCategory, JSON.stringify(teamCodes));
-    db.prepare(`UPDATE bonus_picks SET locked=1 WHERE pick_type LIKE ?`).run(
+    await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ($1,$2)
+                 ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
+                 [bonusCategory, JSON.stringify(teamCodes)]);
+    await query(`UPDATE bonus_picks SET locked=1 WHERE pick_type LIKE $1`, [
       bonusCategory === 'champion' ? 'champion' :
       bonusCategory === 'third_place' ? 'third_place' :
       `${bonusCategory.replace(/s$/, '')}_%`
-    );
-    scorePhaseBonus(bonusCategory);
+    ]);
+    await scorePhaseBonus(bonusCategory);
   }
 }
 
-async function scoreAdvancedBonusIfComplete(db) {
+async function scoreAdvancedBonusIfComplete() {
   // R16 teams: winners of all 16 R32 matches
-  const r32Finished = db.prepare(
-    `SELECT SUM(CASE WHEN status='FINISHED' THEN 1 ELSE 0 END) AS c FROM matches WHERE phase='r32'`
-  ).get().c || 0;
-  if (r32Finished >= 16 && !db.prepare(`SELECT 1 FROM bonus_outcomes WHERE pick_category='r16'`).get()) {
-    const r16Teams = db.prepare(`
+  const r32Finished = (await query(
+    `SELECT SUM(CASE WHEN status='FINISHED' THEN 1 ELSE 0 END)::int AS c FROM matches WHERE phase='r32'`
+  )).rows[0].c || 0;
+  const r16Scored = (await query(`SELECT 1 FROM bonus_outcomes WHERE pick_category='r16'`)).rows[0];
+  if (r32Finished >= 16 && !r16Scored) {
+    const { rows: winnerRows } = await query(`
       SELECT CASE WHEN home_score > away_score THEN home_team ELSE away_team END AS winner
       FROM matches WHERE phase='r32' AND status='FINISHED'
-    `).all().map(r => r.winner);
-    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('r16',?)`).run(JSON.stringify(r16Teams));
-    db.prepare(`UPDATE bonus_picks SET locked=1 WHERE pick_type LIKE 'r16_team_%'`).run();
-    scorePhaseBonus('r16');
+    `);
+    const r16Teams = winnerRows.map(r => r.winner);
+    await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('r16',$1)
+                 ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
+                 [JSON.stringify(r16Teams)]);
+    await query(`UPDATE bonus_picks SET locked=1 WHERE pick_type LIKE 'r16_team_%'`);
+    await scorePhaseBonus('r16');
   }
 
   // Champion + runner-up from final
-  const finalMatch = db.prepare(`SELECT * FROM matches WHERE phase='final' AND status='FINISHED'`).get();
-  if (finalMatch && !db.prepare(`SELECT 1 FROM bonus_outcomes WHERE pick_category='champion'`).get()) {
+  const finalMatch = (await query(`SELECT * FROM matches WHERE phase='final' AND status='FINISHED'`)).rows[0];
+  const championScored = (await query(`SELECT 1 FROM bonus_outcomes WHERE pick_category='champion'`)).rows[0];
+  if (finalMatch && !championScored) {
     const champion = finalMatch.home_score > finalMatch.away_score ? finalMatch.home_team : finalMatch.away_team;
     const runnerUp = finalMatch.home_score > finalMatch.away_score ? finalMatch.away_team : finalMatch.home_team;
-    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('champion',?)`).run(JSON.stringify([champion]));
-    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('runner_up',?)`).run(JSON.stringify([runnerUp]));
-    db.prepare(`UPDATE bonus_picks SET locked=1 WHERE pick_type='champion' OR pick_type='runner_up'`).run();
-    scorePhaseBonus('champion');
-    scorePhaseBonus('runner_up');
+    await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('champion',$1)
+                 ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
+                 [JSON.stringify([champion])]);
+    await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('runner_up',$1)
+                 ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
+                 [JSON.stringify([runnerUp])]);
+    await query(`UPDATE bonus_picks SET locked=1 WHERE pick_type='champion' OR pick_type='runner_up'`);
+    await scorePhaseBonus('champion');
+    await scorePhaseBonus('runner_up');
   }
 
   // 3rd + 4th place from 3rd-place match
-  const match3 = db.prepare(`SELECT * FROM matches WHERE phase='3rd_place' AND status='FINISHED'`).get();
-  if (match3 && !db.prepare(`SELECT 1 FROM bonus_outcomes WHERE pick_category='third_place'`).get()) {
+  const match3 = (await query(`SELECT * FROM matches WHERE phase='3rd_place' AND status='FINISHED'`)).rows[0];
+  const thirdScored = (await query(`SELECT 1 FROM bonus_outcomes WHERE pick_category='third_place'`)).rows[0];
+  if (match3 && !thirdScored) {
     const third  = match3.home_score > match3.away_score ? match3.home_team : match3.away_team;
     const fourth = match3.home_score > match3.away_score ? match3.away_team : match3.home_team;
-    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('third_place',?)`).run(JSON.stringify([third]));
-    db.prepare(`INSERT OR REPLACE INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('fourth_place',?)`).run(JSON.stringify([fourth]));
-    db.prepare(`UPDATE bonus_picks SET locked=1 WHERE pick_type='third_place' OR pick_type='fourth_place'`).run();
-    scorePhaseBonus('third_place');
-    scorePhaseBonus('fourth_place');
+    await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('third_place',$1)
+                 ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
+                 [JSON.stringify([third])]);
+    await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('fourth_place',$1)
+                 ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
+                 [JSON.stringify([fourth])]);
+    await query(`UPDATE bonus_picks SET locked=1 WHERE pick_type='third_place' OR pick_type='fourth_place'`);
+    await scorePhaseBonus('third_place');
+    await scorePhaseBonus('fourth_place');
   }
 }
 

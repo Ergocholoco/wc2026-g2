@@ -1,5 +1,5 @@
-const Database = require('better-sqlite3');
-const { _setDb, _initSchema } = require('../db/schema');
+const { newDb } = require('pg-mem');
+const { _setPool, initSchema, query } = require('../db/schema');
 const {
   scoreMatchPrediction,
   bonusPointsForType,
@@ -7,13 +7,21 @@ const {
   scorePhaseBonus,
 } = require('../services/scorer');
 
-let db;
+function registerSubstr(memDb) {
+  memDb.public.registerFunction({
+    name: 'substr',
+    args: ['text', 'int', 'int'],
+    returns: 'text',
+    implementation: (s, a, b) => String(s).substr(a - 1, b),
+  });
+}
 
-beforeEach(() => {
-  db = new Database(':memory:');
-  db.pragma('foreign_keys = ON');
-  _initSchema(db);
-  _setDb(db);
+beforeEach(async () => {
+  const memDb = newDb();
+  registerSubstr(memDb);
+  const { Pool } = memDb.adapters.createPg();
+  _setPool(new Pool());
+  await initSchema();
 });
 
 // --- scoreMatchPrediction (standard mode) ---
@@ -87,56 +95,56 @@ describe('bonusPointsForType', () => {
 
 // --- refreshPlayerScore ---
 describe('refreshPlayerScore', () => {
-  beforeEach(() => {
-    db.prepare("INSERT INTO matches (id,phase,match_day,home_team,away_team,kickoff_utc,kickoff_mt,home_score,away_score,status) VALUES (1,'group_a',1,'MEX','ECU','2026-06-11T23:00:00Z','Jun 11, 5:00 PM MT',2,1,'FINISHED')").run();
-    db.prepare("INSERT INTO players (id,name,access_code) VALUES (1,'Alice','aaa')").run();
-    db.prepare("INSERT INTO scores_cache (player_id,total_points,match_points,bonus_points) VALUES (1,0,0,0)").run();
+  beforeEach(async () => {
+    await query("INSERT INTO matches (id,phase,match_day,home_team,away_team,kickoff_utc,kickoff_mt,home_score,away_score,status) VALUES (1,'group_a',1,'MEX','ECU','2026-06-11T23:00:00Z','Jun 11, 5:00 PM MT',2,1,'FINISHED')");
+    await query("INSERT INTO players (id,name,access_code) VALUES (1,'Alice','aaa')");
+    await query("INSERT INTO scores_cache (player_id,total_points,match_points,bonus_points) VALUES (1,0,0,0)");
   });
 
-  it('scores 5 pts for exact prediction', () => {
-    db.prepare("INSERT INTO predictions (player_id,match_id,home_score,away_score,locked) VALUES (1,1,2,1,1)").run();
-    refreshPlayerScore(1);
-    const row = db.prepare('SELECT * FROM scores_cache WHERE player_id=1').get();
-    expect(row.match_points).toBe(5);
-    expect(row.total_points).toBe(5);
+  it('scores 5 pts for exact prediction', async () => {
+    await query("INSERT INTO predictions (player_id,match_id,home_score,away_score,locked) VALUES (1,1,2,1,1)");
+    await refreshPlayerScore(1);
+    const { rows } = await query('SELECT * FROM scores_cache WHERE player_id=1');
+    expect(rows[0].match_points).toBe(5);
+    expect(rows[0].total_points).toBe(5);
   });
 
-  it('scores 2 pts for correct result only', () => {
-    db.prepare("INSERT INTO predictions (player_id,match_id,home_score,away_score,locked) VALUES (1,1,3,0,1)").run();
-    refreshPlayerScore(1);
-    const row = db.prepare('SELECT * FROM scores_cache WHERE player_id=1').get();
-    expect(row.match_points).toBe(2);
+  it('scores 2 pts for correct result only', async () => {
+    await query("INSERT INTO predictions (player_id,match_id,home_score,away_score,locked) VALUES (1,1,3,0,1)");
+    await refreshPlayerScore(1);
+    const { rows } = await query('SELECT * FROM scores_cache WHERE player_id=1');
+    expect(rows[0].match_points).toBe(2);
   });
 
-  it('scores 0 for unlocked predictions', () => {
-    db.prepare("INSERT INTO predictions (player_id,match_id,home_score,away_score,locked) VALUES (1,1,2,1,0)").run();
-    refreshPlayerScore(1);
-    const row = db.prepare('SELECT * FROM scores_cache WHERE player_id=1').get();
-    expect(row.match_points).toBe(0);
+  it('scores 0 for unlocked predictions', async () => {
+    await query("INSERT INTO predictions (player_id,match_id,home_score,away_score,locked) VALUES (1,1,2,1,0)");
+    await refreshPlayerScore(1);
+    const { rows } = await query('SELECT * FROM scores_cache WHERE player_id=1');
+    expect(rows[0].match_points).toBe(0);
   });
 });
 
 // --- scorePhaseBonus ---
 describe('scorePhaseBonus', () => {
-  beforeEach(() => {
-    db.prepare("INSERT INTO players (id,name,access_code) VALUES (1,'Alice','aaa')").run();
-    db.prepare("INSERT INTO scores_cache (player_id,total_points,match_points,bonus_points) VALUES (1,0,0,0)").run();
+  beforeEach(async () => {
+    await query("INSERT INTO players (id,name,access_code) VALUES (1,'Alice','aaa')");
+    await query("INSERT INTO scores_cache (player_id,total_points,match_points,bonus_points) VALUES (1,0,0,0)");
   });
 
-  it('awards champion points when player picked correct team', () => {
-    db.prepare("INSERT INTO bonus_picks (player_id,pick_type,team_code,locked) VALUES (1,'champion','BRA',1)").run();
-    db.prepare("INSERT INTO bonus_outcomes (pick_category,actual_teams_json) VALUES ('champion','[\"BRA\"]')").run();
-    scorePhaseBonus('champion');
-    const row = db.prepare('SELECT * FROM scores_cache WHERE player_id=1').get();
-    expect(row.bonus_points).toBe(25);
-    expect(row.total_points).toBe(25);
+  it('awards champion points when player picked correct team', async () => {
+    await query("INSERT INTO bonus_picks (player_id,pick_type,team_code,locked) VALUES (1,'champion','BRA',1)");
+    await query("INSERT INTO bonus_outcomes (pick_category,actual_teams_json) VALUES ('champion','[\"BRA\"]')");
+    await scorePhaseBonus('champion');
+    const { rows } = await query('SELECT * FROM scores_cache WHERE player_id=1');
+    expect(rows[0].bonus_points).toBe(25);
+    expect(rows[0].total_points).toBe(25);
   });
 
-  it('awards 0 for wrong champion pick', () => {
-    db.prepare("INSERT INTO bonus_picks (player_id,pick_type,team_code,locked) VALUES (1,'champion','ARG',1)").run();
-    db.prepare("INSERT INTO bonus_outcomes (pick_category,actual_teams_json) VALUES ('champion','[\"BRA\"]')").run();
-    scorePhaseBonus('champion');
-    const row = db.prepare('SELECT * FROM scores_cache WHERE player_id=1').get();
-    expect(row.bonus_points).toBe(0);
+  it('awards 0 for wrong champion pick', async () => {
+    await query("INSERT INTO bonus_picks (player_id,pick_type,team_code,locked) VALUES (1,'champion','ARG',1)");
+    await query("INSERT INTO bonus_outcomes (pick_category,actual_teams_json) VALUES ('champion','[\"BRA\"]')");
+    await scorePhaseBonus('champion');
+    const { rows } = await query('SELECT * FROM scores_cache WHERE player_id=1');
+    expect(rows[0].bonus_points).toBe(0);
   });
 });

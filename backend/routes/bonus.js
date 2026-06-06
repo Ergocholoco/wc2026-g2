@@ -1,5 +1,5 @@
 const express = require('express');
-const { getDb } = require('../db/schema');
+const { query } = require('../db/schema');
 const router = express.Router();
 
 function category(pickType) {
@@ -10,22 +10,24 @@ function category(pickType) {
   return pickType;
 }
 
-function isBonusLocked(pickType) {
-  const db = getDb();
+async function isBonusLocked(pickType) {
   const groupMatch = pickType.match(/^group_([a-l])_[12](st|nd)$/);
   if (groupMatch) {
     const phase = `group_${groupMatch[1]}`;
-    const lastMatch = db.prepare(
-      `SELECT kickoff_utc FROM matches WHERE phase = ? ORDER BY kickoff_utc DESC LIMIT 1`
-    ).get(phase);
+    const { rows } = await query(
+      `SELECT kickoff_utc FROM matches WHERE phase = $1 ORDER BY kickoff_utc DESC LIMIT 1`,
+      [phase]
+    );
+    const lastMatch = rows[0];
     if (!lastMatch) return false;
     return Date.now() >= new Date(lastMatch.kickoff_utc).getTime() - 60 * 60 * 1000;
   }
   // advanced mode: r16 picks lock before first R32 match
   if (pickType.startsWith('r16_team_')) {
-    const firstMatch = db.prepare(
+    const { rows } = await query(
       `SELECT kickoff_utc FROM matches WHERE phase='r32' ORDER BY kickoff_utc ASC LIMIT 1`
-    ).get();
+    );
+    const firstMatch = rows[0];
     if (!firstMatch) return false;
     return Date.now() >= new Date(firstMatch.kickoff_utc).getTime() - 60 * 60 * 1000;
   }
@@ -37,46 +39,50 @@ function isBonusLocked(pickType) {
   const cat = category(pickType);
   const phase = phaseMap[cat];
   if (!phase) return false;
-  const firstMatch = db.prepare(
-    `SELECT kickoff_utc FROM matches WHERE phase = ? ORDER BY kickoff_utc ASC LIMIT 1`
-  ).get(phase);
+  const { rows } = await query(
+    `SELECT kickoff_utc FROM matches WHERE phase = $1 ORDER BY kickoff_utc ASC LIMIT 1`,
+    [phase]
+  );
+  const firstMatch = rows[0];
   if (!firstMatch) return false;
   return Date.now() >= new Date(firstMatch.kickoff_utc).getTime() - 60 * 60 * 1000;
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { player_id } = req.query;
   if (!player_id) return res.status(400).json({ error: 'player_id required' });
-  const rows = getDb().prepare(
-    'SELECT pick_type, team_code, locked FROM bonus_picks WHERE player_id = ?'
-  ).all(player_id);
+  const { rows } = await query(
+    'SELECT pick_type, team_code, locked FROM bonus_picks WHERE player_id = $1',
+    [player_id]
+  );
   res.json(rows);
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { player_id, pick_type, team_code } = req.body;
   if (!player_id || !pick_type || !team_code)
     return res.status(400).json({ error: 'player_id, pick_type, team_code required' });
 
-  const player = getDb().prepare('SELECT id FROM players WHERE id = ?').get(player_id);
-  if (!player) return res.status(404).json({ error: 'Player not found' });
+  const { rows: playerRows } = await query('SELECT id FROM players WHERE id = $1', [player_id]);
+  if (!playerRows[0]) return res.status(404).json({ error: 'Player not found' });
 
-  if (isBonusLocked(pick_type))
+  if (await isBonusLocked(pick_type))
     return res.status(403).json({ error: 'This bonus pick is locked' });
 
   const cat = category(pick_type);
   if (['finalist', 'semifinalist', 'quarterfinalist'].includes(cat)) {
-    const existing = getDb().prepare(
-      `SELECT id FROM bonus_picks WHERE player_id = ? AND pick_type LIKE ? AND team_code = ?`
-    ).get(player_id, `${cat}_%`, team_code);
-    if (existing) return res.status(409).json({ error: `${team_code} already picked in this category` });
+    const { rows: existingRows } = await query(
+      `SELECT id FROM bonus_picks WHERE player_id = $1 AND pick_type LIKE $2 AND team_code = $3`,
+      [player_id, `${cat}_%`, team_code]
+    );
+    if (existingRows[0]) return res.status(409).json({ error: `${team_code} already picked in this category` });
   }
 
-  getDb().prepare(`
+  await query(`
     INSERT INTO bonus_picks (player_id, pick_type, team_code, locked)
-    VALUES (?, ?, ?, 0)
-    ON CONFLICT(player_id, pick_type) DO UPDATE SET team_code = excluded.team_code
-  `).run(player_id, pick_type, team_code);
+    VALUES ($1, $2, $3, 0)
+    ON CONFLICT (player_id, pick_type) DO UPDATE SET team_code = EXCLUDED.team_code
+  `, [player_id, pick_type, team_code]);
 
   res.json({ ok: true });
 });

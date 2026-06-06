@@ -2,6 +2,9 @@
 
 ## Local development
 
+Requires a PostgreSQL database. Set `DATABASE_URL` in `.env` (see `.env.example`),
+then:
+
 ```
 npm install
 npm run dev
@@ -9,28 +12,16 @@ npm run dev
 
 ## Deployment (Railway)
 
-This service deploys to Railway via the included `Dockerfile` (Node 18 +
-`python3`/`build-essential`, required to compile `better-sqlite3`'s native
-module).
+This service deploys to Railway via the included `Dockerfile` (Node 18).
 
-### Database storage — read this before relaunching
+### Database
 
-Railway's free/trial plan does not support persistent volumes, so `DB_PATH`
-points at `/tmp/quiniela.db` — local disk inside the container.
+The backend uses PostgreSQL via the `pg` library, connecting through the
+`DATABASE_URL` environment variable. On Railway, add a **PostgreSQL** service
+to your project (New → Database → PostgreSQL) — Railway automatically injects
+`DATABASE_URL` into the backend service's environment, so no manual
+configuration is needed. This gives the app persistent storage that survives
+restarts and redeploys.
 
-**This means the database is wiped every time the container restarts**:
-on every redeploy (e.g. pushing new code), and on any restart Railway
-triggers on its own (maintenance, crashes, etc). When that happens, every
-registered player, prediction, and score is gone — players would need to
-register and re-enter their picks from scratch.
-
-Practical guidance for running the tournament:
-- Once players start registering and submitting picks, **avoid pushing new
-  code / redeploying** unless absolutely necessary.
-- If the app does reset unexpectedly mid-tournament, you'll need to notify
-  players to re-register and re-enter their picks.
-
-If this turns out to be a problem, the real fix is persistent storage:
-upgrade to a Railway plan that includes volumes, or move to a hosted
-database (e.g. Postgres via a Railway plugin, or a SQLite-compatible
-service like Turso/LibSQL).
+The schema is created automatically on startup (`CREATE TABLE IF NOT EXISTS`),
+and the match list is seeded once on first run.
