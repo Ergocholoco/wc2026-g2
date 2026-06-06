@@ -139,3 +139,59 @@ describe('Bonus Picks', () => {
     expect(res.body.some(p => p.pick_type === 'champion' && p.team_code === 'BRA')).toBe(true);
   });
 });
+
+describe('GET /api/leaderboard', () => {
+  it('returns sorted player list', async () => {
+    const res = await request(app).get('/api/leaderboard');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body[0]).toMatchObject({
+      player_id: expect.any(Number),
+      name: expect.any(String),
+      total_points: expect.any(Number),
+      position: 1,
+    });
+  });
+});
+
+describe('Admin routes', () => {
+  const headers = { 'x-admin-password': 'testpw' };
+
+  beforeAll(() => { process.env.ADMIN_PASSWORD = 'testpw'; });
+
+  it('GET /api/admin/players requires auth', async () => {
+    const res = await request(app).get('/api/admin/players');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/admin/players with auth returns players', async () => {
+    const res = await request(app).get('/api/admin/players').set(headers);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('POST /api/admin/players creates player', async () => {
+    const res = await request(app)
+      .post('/api/admin/players')
+      .set(headers)
+      .send({ name: 'Bob', access_code: 'bob99' });
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe('Bob');
+  });
+
+  it('DELETE /api/admin/players/:id removes player', async () => {
+    const create = await request(app)
+      .post('/api/admin/players').set(headers)
+      .send({ name: 'Temp', access_code: 'tmp1' });
+    const id = create.body.id;
+    const del = await request(app).delete(`/api/admin/players/${id}`).set(headers);
+    expect(del.status).toBe(200);
+  });
+
+  it('GET /api/admin/export.csv returns CSV', async () => {
+    const res = await request(app).get('/api/admin/export.csv').set(headers);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/csv/);
+    expect(res.text).toContain('Rank,Name');
+  });
+});
