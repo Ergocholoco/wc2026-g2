@@ -191,6 +191,13 @@ const TEAMS = {
   "CUW": {
     "name": "Curaçao",
     "flag": "🇨🇼"
+  },
+  // CUR: football-data.org's /matches endpoint uses this code for Curaçao
+  // (its /teams endpoint uses CUW) — alias kept manually; re-running
+  // fetch-teams.js will drop it, so re-add if regenerating this file.
+  "CUR": {
+    "name": "Curaçao",
+    "flag": "🇨🇼"
   }
 };
 module.exports = { TEAMS };
