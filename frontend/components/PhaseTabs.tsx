@@ -8,18 +8,20 @@ const PHASES = [
   { id: 'group_i', label: 'Group I' }, { id: 'group_j', label: 'Group J' },
   { id: 'group_k', label: 'Group K' }, { id: 'group_l', label: 'Group L' },
   { id: 'r32',     label: 'Round 32' }, { id: 'r16',   label: 'Round 16' },
-  { id: 'qf',      label: 'Quarter-F' }, { id: 'sf',  label: 'Semi-F' },
-  { id: 'final',   label: 'Final' }, { id: 'bonus', label: '★ Bonus' },
+  { id: 'qf',       label: 'Quarter-F' }, { id: 'sf',    label: 'Semi-F' },
+  { id: '3rd_place', label: '3rd Place' }, { id: 'final', label: 'Final' },
+  { id: 'bonus',    label: '★ Bonus' },
 ];
 
 interface Props { active: string; onChange: (phase: string) => void; }
 
 export default function PhaseTabs({ active, onChange }: Props) {
   return (
+    <div className="phase-tabs-wrapper">
     <div style={{
       display: 'flex', gap: '4px', overflowX: 'auto',
-      paddingBottom: '4px', marginBottom: '1rem',
-      scrollbarWidth: 'none',
+      paddingBottom: '6px', marginBottom: '1rem',
+      scrollbarWidth: 'thin',
     }}>
       {PHASES.map(p => (
         <button
@@ -41,6 +43,7 @@ export default function PhaseTabs({ active, onChange }: Props) {
           {p.label}
         </button>
       ))}
+    </div>
     </div>
   );
 }

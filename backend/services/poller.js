@@ -66,9 +66,9 @@ async function pollCycle() {
     if (dbMatch.status === 'FINISHED' && dbMatch.home_score != null) continue;
 
     await query(`
-      UPDATE matches SET status='FINISHED', home_score=$1, away_score=$2, fd_match_id=$3
-      WHERE id=$4
-    `, [score.home, score.away, m.id, dbMatch.id]);
+      UPDATE matches SET status='FINISHED', home_score=$1, away_score=$2, fd_match_id=$3, winner=$4
+      WHERE id=$5
+    `, [score.home, score.away, m.id, m.score?.winner ?? null, dbMatch.id]);
 
     await query(`UPDATE predictions SET locked=1 WHERE match_id=$1`, [dbMatch.id]);
 
@@ -164,7 +164,10 @@ async function scoreKnockoutBonusIfComplete() {
     if (alreadyScored) continue;
 
     const { rows: winnerRows } = await query(`
-      SELECT CASE WHEN home_score > away_score THEN home_team ELSE away_team END AS winner
+      SELECT CASE
+        WHEN winner = 'HOME_TEAM' OR (winner IS NULL AND home_score > away_score) THEN home_team
+        ELSE away_team
+      END AS winner
       FROM matches WHERE phase=$1 AND status='FINISHED'
     `, [dbPhase]);
     const winners = winnerRows.map(r => r.winner);
@@ -192,7 +195,10 @@ async function scoreAdvancedBonusIfComplete() {
   const r16Scored = (await query(`SELECT 1 FROM bonus_outcomes WHERE pick_category='r16'`)).rows[0];
   if (r32Finished >= 16 && !r16Scored) {
     const { rows: winnerRows } = await query(`
-      SELECT CASE WHEN home_score > away_score THEN home_team ELSE away_team END AS winner
+      SELECT CASE
+        WHEN winner = 'HOME_TEAM' OR (winner IS NULL AND home_score > away_score) THEN home_team
+        ELSE away_team
+      END AS winner
       FROM matches WHERE phase='r32' AND status='FINISHED'
     `);
     const r16Teams = winnerRows.map(r => r.winner);
@@ -207,8 +213,9 @@ async function scoreAdvancedBonusIfComplete() {
   const finalMatch = (await query(`SELECT * FROM matches WHERE phase='final' AND status='FINISHED'`)).rows[0];
   const championScored = (await query(`SELECT 1 FROM bonus_outcomes WHERE pick_category='champion'`)).rows[0];
   if (finalMatch && !championScored) {
-    const champion = finalMatch.home_score > finalMatch.away_score ? finalMatch.home_team : finalMatch.away_team;
-    const runnerUp = finalMatch.home_score > finalMatch.away_score ? finalMatch.away_team : finalMatch.home_team;
+    const homeWon = finalMatch.winner === 'HOME_TEAM' || (finalMatch.winner == null && finalMatch.home_score > finalMatch.away_score);
+    const champion = homeWon ? finalMatch.home_team : finalMatch.away_team;
+    const runnerUp = homeWon ? finalMatch.away_team : finalMatch.home_team;
     await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('champion',$1)
                  ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
                  [JSON.stringify([champion])]);
@@ -224,8 +231,9 @@ async function scoreAdvancedBonusIfComplete() {
   const match3 = (await query(`SELECT * FROM matches WHERE phase='3rd_place' AND status='FINISHED'`)).rows[0];
   const thirdScored = (await query(`SELECT 1 FROM bonus_outcomes WHERE pick_category='third_place'`)).rows[0];
   if (match3 && !thirdScored) {
-    const third  = match3.home_score > match3.away_score ? match3.home_team : match3.away_team;
-    const fourth = match3.home_score > match3.away_score ? match3.away_team : match3.home_team;
+    const homeWon3 = match3.winner === 'HOME_TEAM' || (match3.winner == null && match3.home_score > match3.away_score);
+    const third  = homeWon3 ? match3.home_team : match3.away_team;
+    const fourth = homeWon3 ? match3.away_team : match3.home_team;
     await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ('third_place',$1)
                  ON CONFLICT (pick_category) DO UPDATE SET actual_teams_json = EXCLUDED.actual_teams_json`,
                  [JSON.stringify([third])]);

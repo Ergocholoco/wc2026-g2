@@ -29,7 +29,8 @@ async function initSchema() {
       home_score  INTEGER,
       away_score  INTEGER,
       status      TEXT    NOT NULL DEFAULT 'SCHEDULED',
-      fd_match_id INTEGER
+      fd_match_id INTEGER,
+      winner      TEXT
     );
 
     CREATE TABLE IF NOT EXISTS players (
@@ -72,6 +73,8 @@ async function initSchema() {
       last_calculated TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+  // Add winner column to existing DBs that were created before this column existed
+  await query(`ALTER TABLE matches ADD COLUMN IF NOT EXISTS winner TEXT`);
 }
 
 module.exports = { query, getPool, _setPool, initSchema };

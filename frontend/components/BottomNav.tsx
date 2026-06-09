@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const TABS = [
-  { href: '/',         label: 'Standings', icon: '🏆' },
-  { href: '/picks',    label: 'My Picks',  icon: '⚽' },
-  { href: '/schedule', label: 'Schedule',  icon: '📅' },
-  { href: '/admin',    label: 'Admin',     icon: '⚙️' },
+  { href: '/',           label: 'Standings',  icon: '🏆' },
+  { href: '/picks',      label: 'My Picks',   icon: '⚽' },
+  { href: '/schedule',   label: 'Schedule',   icon: '📅' },
+  { href: '/como-jugar', label: 'Cómo Jugar', icon: 'ℹ️' },
+  { href: '/admin',      label: 'Admin',      icon: '⚙️' },
 ];
 
 export default function BottomNav() {

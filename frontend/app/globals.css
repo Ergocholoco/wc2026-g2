@@ -56,7 +56,19 @@ input:focus, select:focus {
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 2px; }
 
-.page { max-width: 600px; margin: 0 auto; padding: 1rem 1rem 0; }
+.page { max-width: 600px; margin: 0 auto; padding: 1rem 1rem 2rem; }
+
+.phase-tabs-wrapper {
+  position: relative;
+}
+.phase-tabs-wrapper::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 6px;
+  width: 3rem;
+  background: linear-gradient(to right, transparent, var(--bg));
+  pointer-events: none;
+}
 
 .section-label {
   font-family: 'Barlow Condensed', sans-serif;
