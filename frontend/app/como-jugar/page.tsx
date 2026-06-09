@@ -43,7 +43,10 @@ export default function ComoJugar() {
       <section style={sectionStyle}>
         <h2 className="condensed" style={headingStyle}>Picks de Bonificación</h2>
         <p style={textStyle}>
-          En la pestaña <strong style={{ color: 'var(--text)' }}>★ Bonus</strong> encontrarás predicciones globales del torneo que valen puntos extra. Estos se puntúan con el resultado final del torneo (incluyendo prórroga y penaltis para el avance).
+          En la pestaña <strong style={{ color: 'var(--text)' }}>★ Bonus</strong> encontrarás predicciones globales del torneo que valen puntos extra. Estos son sobre <strong style={{ color: 'var(--text)' }}>quién avanza</strong>, no sobre marcadores individuales — la regla de los 90 minutos no aplica aquí.
+        </p>
+        <p style={{ ...textStyle, marginTop: '0.5rem' }}>
+          Si elegiste a Brasil como semifinalista y clasifican en la tanda de penaltis, ese pick de bonificación se cuenta. No importa cómo llegaron — solo que llegaron.
         </p>
         <p style={{ ...textStyle, marginTop: '0.5rem' }}>
           Los picks de bonificación se bloquean antes del primer partido de cada ronda correspondiente.
