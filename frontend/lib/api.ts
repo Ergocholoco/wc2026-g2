@@ -118,6 +118,16 @@ export function getAdminPlayerPicks(id: number) {
   return apiFetch<any>(`/api/admin/players/${id}/picks`, { headers: adminHeaders() });
 }
 
+export interface MatchPrediction {
+  player_name: string;
+  home_score: number;
+  away_score: number;
+}
+
+export function getAdminMatchPredictions(matchId: number) {
+  return apiFetch<MatchPrediction[]>(`/api/admin/matches/${matchId}/predictions`, { headers: adminHeaders() });
+}
+
 export function triggerAdminRefresh() {
   return apiFetch<{ ok: boolean }>('/api/admin/refresh', {
     method: 'POST',

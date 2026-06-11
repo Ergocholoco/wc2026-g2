@@ -4,7 +4,9 @@ import { getAdminPassword, setAdminPassword } from '@/lib/auth';
 import {
   getAdminPlayers, createAdminPlayer, deleteAdminPlayer,
   getAdminPlayerPicks, triggerAdminRefresh, downloadAdminCsv,
+  getMatches, getAdminMatchPredictions, Match, MatchPrediction,
 } from '@/lib/api';
+import { teamName } from '@/lib/teams';
 
 export default function AdminPage() {
   const [pw, setPwInput] = useState('');
@@ -16,10 +18,24 @@ export default function AdminPage() {
   const [expandedPicks, setExpandedPicks] = useState<any | null>(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [selectedMatchId, setSelectedMatchId] = useState('');
+  const [matchPredictions, setMatchPredictions] = useState<MatchPrediction[]>([]);
 
   useEffect(() => {
-    if (getAdminPassword()) { setAuthed(true); loadPlayers(); }
+    if (getAdminPassword()) { setAuthed(true); loadPlayers(); loadMatches(); }
   }, []);
+
+  async function loadMatches() {
+    try { setMatches(await getMatches()); } catch (e) { console.error(e); }
+  }
+
+  async function handleSelectMatch(id: string) {
+    setSelectedMatchId(id);
+    if (!id) { setMatchPredictions([]); return; }
+    try { setMatchPredictions(await getAdminMatchPredictions(Number(id))); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+  }
 
   async function loadPlayers() {
     try { setPlayers(await getAdminPlayers()); }
@@ -33,6 +49,7 @@ export default function AdminPage() {
       await getAdminPlayers();
       setAuthed(true);
       loadPlayers();
+      loadMatches();
     } catch {
       setError('Wrong password');
     }
@@ -114,6 +131,37 @@ export default function AdminPage() {
         <button className="btn-ghost" onClick={() => handleExport('/api/admin/export-picks.csv', 'picks_backup.csv')}>
           ↓ Export Picks Backup
         </button>
+      </div>
+
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--surface2)', borderRadius: 'var(--radius)', padding: '1rem', marginBottom: '1.5rem' }}>
+        <div className="section-label" style={{ marginBottom: '0.5rem' }}>Match Picks</div>
+        <select value={selectedMatchId} onChange={e => handleSelectMatch(e.target.value)}
+          style={{ width: '100%', padding: '0.5rem 0.75rem', fontSize: '0.9rem', marginBottom: '0.75rem' }}>
+          <option value="">Select a match…</option>
+          {matches.map(m => (
+            <option key={m.id} value={m.id}>
+              {teamName(m.home_team)} vs {teamName(m.away_team)} — {m.kickoff_mt}
+            </option>
+          ))}
+        </select>
+        {selectedMatchId && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            {matchPredictions.length === 0 && (
+              <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>No predictions yet.</div>
+            )}
+            {matchPredictions.map(pred => (
+              <div key={pred.player_name} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '0.4rem 0.6rem', background: 'var(--surface2)', borderRadius: '6px', fontSize: '0.85rem',
+              }}>
+                <span>{pred.player_name}</span>
+                <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 700, color: 'var(--gold)' }}>
+                  {pred.home_score}–{pred.away_score}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="section-label" style={{ marginBottom: '0.5rem' }}>Players ({players.length})</div>

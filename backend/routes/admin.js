@@ -57,6 +57,17 @@ router.get('/players/:id/picks', async (req, res) => {
   res.json({ predictions, bonus });
 });
 
+router.get('/matches/:id/predictions', async (req, res) => {
+  const { rows } = await query(`
+    SELECT pl.name AS player_name, p.home_score, p.away_score
+    FROM predictions p
+    JOIN players pl ON pl.id = p.player_id
+    WHERE p.match_id = $1
+    ORDER BY pl.name
+  `, [req.params.id]);
+  res.json(rows);
+});
+
 router.post('/refresh', (req, res) => {
   try {
     const { triggerPoll } = require('../services/poller');
