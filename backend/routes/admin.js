@@ -91,4 +91,46 @@ router.get('/export.csv', async (req, res) => {
   res.send(lines.join('\n'));
 });
 
+router.get('/export-picks.csv', async (req, res) => {
+  const { rows: predictions } = await query(`
+    SELECT pl.name AS player_name, m.phase, m.home_team, m.away_team,
+           p.home_score AS pick_home, p.away_score AS pick_away, p.locked,
+           m.home_score AS actual_home, m.away_score AS actual_away, m.status
+    FROM predictions p
+    JOIN players pl ON pl.id = p.player_id
+    JOIN matches m ON m.id = p.match_id
+    ORDER BY pl.name, m.kickoff_utc
+  `);
+
+  const { rows: bonus } = await query(`
+    SELECT pl.name AS player_name, b.pick_type, b.team_code, b.locked
+    FROM bonus_picks b
+    JOIN players pl ON pl.id = b.player_id
+    ORDER BY pl.name, b.pick_type
+  `);
+
+  const lines = ['Player,Type,Phase,Match / Pick,Your Pick,Actual Result,Locked'];
+
+  predictions.forEach(p => {
+    const matchLabel = `${p.home_team} vs ${p.away_team}`;
+    const yourPick = `${p.pick_home}-${p.pick_away}`;
+    const actual = p.status === 'FINISHED' ? `${p.actual_home}-${p.actual_away}` : p.status;
+    lines.push([
+      csvCell(p.player_name), csvCell('Match'), csvCell(p.phase),
+      csvCell(matchLabel), csvCell(yourPick), csvCell(actual), csvCell(p.locked ? 'Yes' : 'No'),
+    ].join(','));
+  });
+
+  bonus.forEach(b => {
+    lines.push([
+      csvCell(b.player_name), csvCell('Bonus'), csvCell(''),
+      csvCell(b.pick_type), csvCell(b.team_code), csvCell(''), csvCell(b.locked ? 'Yes' : 'No'),
+    ].join(','));
+  });
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="picks_backup.csv"');
+  res.send(lines.join('\n'));
+});
+
 module.exports = router;

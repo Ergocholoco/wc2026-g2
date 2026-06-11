@@ -125,6 +125,23 @@ export function triggerAdminRefresh() {
   });
 }
 
+export async function downloadAdminCsv(path: string, filename: string) {
+  const res = await fetch(path, { headers: adminHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error ?? res.statusText);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export interface AppConfig {
   scoringMode: 'standard' | 'advanced';
   prizes: { first: number | null; second: number | null; third: number | null; entryFee: number | null };

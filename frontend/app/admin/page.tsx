@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { getAdminPassword, setAdminPassword } from '@/lib/auth';
 import {
   getAdminPlayers, createAdminPlayer, deleteAdminPlayer,
-  getAdminPlayerPicks, triggerAdminRefresh,
+  getAdminPlayerPicks, triggerAdminRefresh, downloadAdminCsv,
 } from '@/lib/api';
 
 export default function AdminPage() {
@@ -68,6 +68,12 @@ export default function AdminPage() {
     catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
   }
 
+  async function handleExport(path: string, filename: string) {
+    setMsg(''); setError('');
+    try { await downloadAdminCsv(path, filename); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+  }
+
   if (!authed) {
     return (
       <div className="page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '4rem' }}>
@@ -102,11 +108,12 @@ export default function AdminPage() {
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <button className="btn-ghost" onClick={handleRefresh}>↻ Refresh Scores</button>
-        <a href="/api/admin/export.csv"
-          style={{ display: 'inline-block', padding: '0.4rem 1rem', borderRadius: 'var(--radius)', border: '1px solid var(--surface2)', color: 'var(--text-dim)', fontSize: '0.875rem' }}
-          download>
-          ↓ Export CSV
-        </a>
+        <button className="btn-ghost" onClick={() => handleExport('/api/admin/export.csv', 'leaderboard.csv')}>
+          ↓ Export Leaderboard
+        </button>
+        <button className="btn-ghost" onClick={() => handleExport('/api/admin/export-picks.csv', 'picks_backup.csv')}>
+          ↓ Export Picks Backup
+        </button>
       </div>
 
       <div className="section-label" style={{ marginBottom: '0.5rem' }}>Players ({players.length})</div>
@@ -140,14 +147,20 @@ export default function AdminPage() {
                 <div style={{ color: 'var(--text-dim)', marginBottom: '0.4rem' }}>
                   Predictions: {expandedPicks.predictions?.length ?? 0} · Bonus: {expandedPicks.bonus?.length ?? 0}
                 </div>
-                {expandedPicks.predictions?.slice(0, 5).map((pred: any) => (
+                {expandedPicks.predictions?.map((pred: any) => (
                   <div key={pred.match_id} style={{ color: 'var(--text-dim)', lineHeight: '1.6' }}>
                     {pred.home_team} vs {pred.away_team}: {pred.home_score}–{pred.away_score}
                     {pred.status === 'FINISHED' ? ` (actual: ${pred.actual_home}–${pred.actual_away})` : ''}
                   </div>
                 ))}
-                {(expandedPicks.predictions?.length ?? 0) > 5 && (
-                  <div style={{ color: 'var(--text-dim)' }}>… and {expandedPicks.predictions.length - 5} more</div>
+                {(expandedPicks.bonus?.length ?? 0) > 0 && (
+                  <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--surface2)' }}>
+                    {expandedPicks.bonus.map((b: any) => (
+                      <div key={b.pick_type} style={{ color: 'var(--text-dim)', lineHeight: '1.6' }}>
+                        {b.pick_type}: {b.team_code}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
