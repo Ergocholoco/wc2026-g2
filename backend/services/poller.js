@@ -16,6 +16,20 @@ async function fetchMatches() {
   return data.matches || [];
 }
 
+async function fetchMatch(id) {
+  const apiKey = process.env.FOOTBALL_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(`https://api.football-data.org/v4/matches/${id}`, {
+      headers: { 'X-Auth-Token': apiKey },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 async function fetchStandings() {
   const apiKey = process.env.FOOTBALL_API_KEY;
   if (!apiKey) return [];
@@ -51,9 +65,6 @@ async function pollCycle() {
       continue;
     }
 
-    const score = m.score?.fullTime;
-    if (score?.home == null || score?.away == null) continue;
-
     let dbMatch = (await query('SELECT * FROM matches WHERE fd_match_id = $1', [m.id])).rows[0];
     if (!dbMatch) {
       dbMatch = (await query(`
@@ -65,10 +76,28 @@ async function pollCycle() {
 
     if (dbMatch.status === 'FINISHED' && dbMatch.home_score != null) continue;
 
+    let score = m.score?.fullTime;
+    let winner = m.score?.winner ?? null;
+
+    if (score?.home == null || score?.away == null) {
+      const single = await fetchMatch(m.id);
+      if (single?.score?.fullTime?.home != null && single?.score?.fullTime?.away != null) {
+        score = single.score.fullTime;
+        winner = single.score.winner ?? null;
+      }
+    }
+
+    if (score?.home == null || score?.away == null) {
+      if (dbMatch.status !== 'FINISHED') {
+        await query(`UPDATE matches SET status='FINISHED', fd_match_id=$1 WHERE id=$2`, [m.id, dbMatch.id]);
+      }
+      continue;
+    }
+
     await query(`
       UPDATE matches SET status='FINISHED', home_score=$1, away_score=$2, fd_match_id=$3, winner=$4
       WHERE id=$5
-    `, [score.home, score.away, m.id, m.score?.winner ?? null, dbMatch.id]);
+    `, [score.home, score.away, m.id, winner, dbMatch.id]);
 
     await query(`UPDATE predictions SET locked=1 WHERE match_id=$1`, [dbMatch.id]);
 
