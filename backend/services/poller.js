@@ -104,16 +104,15 @@ async function pollCycle() {
     finishedMatchIds.add(dbMatch.id);
   }
 
-  if (finishedMatchIds.size === 0) return;
-
-  const ids = [...finishedMatchIds];
-  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-  const { rows: affectedPlayers } = await query(
-    `SELECT DISTINCT player_id FROM predictions WHERE match_id IN (${placeholders})`,
-    ids
-  );
-
-  for (const { player_id } of affectedPlayers) await refreshPlayerScore(player_id);
+  if (finishedMatchIds.size > 0) {
+    const ids = [...finishedMatchIds];
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+    const { rows: affectedPlayers } = await query(
+      `SELECT DISTINCT player_id FROM predictions WHERE match_id IN (${placeholders})`,
+      ids
+    );
+    for (const { player_id } of affectedPlayers) await refreshPlayerScore(player_id);
+  }
 
   await scoreGroupBonusIfComplete();
   await scoreKnockoutBonusIfComplete();
@@ -137,20 +136,51 @@ async function scoreGroupBonusIfComplete() {
     )).rows[0];
     if (alreadyScored) continue;
 
-    let standings;
-    try { standings = await fetchStandings(); } catch { continue; }
-    const groupStanding = standings.find(s => s.group === `GROUP_${g.toUpperCase()}`);
-    if (!groupStanding) continue;
+    let first, second;
 
-    const sorted = [...groupStanding.table].sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      const gdDiff = b.goalDifference - a.goalDifference;
-      if (gdDiff !== 0) return gdDiff;
-      return b.goalsFor - a.goalsFor;
-    });
+    // Try API standings first, fall back to computing from our own match data
+    try {
+      const standings = await fetchStandings();
+      const groupStanding = standings.find(s => s.group === `GROUP_${g.toUpperCase()}`);
+      if (groupStanding?.table?.length >= 2) {
+        const sorted = [...groupStanding.table].sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          const gdDiff = b.goalDifference - a.goalDifference;
+          if (gdDiff !== 0) return gdDiff;
+          return b.goalsFor - a.goalsFor;
+        });
+        first  = sorted[0]?.team?.tla;
+        second = sorted[1]?.team?.tla;
+      }
+    } catch { /* fall through to DB computation */ }
 
-    const first = sorted[0]?.team?.tla;
-    const second = sorted[1]?.team?.tla;
+    if (!first || !second) {
+      // Compute standings from finished match results in our own DB
+      const { rows: matchRows } = await query(
+        `SELECT home_team, away_team, home_score, away_score FROM matches WHERE phase=$1 AND status='FINISHED'`,
+        [phase]
+      );
+      const teams = {};
+      for (const m of matchRows) {
+        for (const t of [m.home_team, m.away_team]) {
+          if (!teams[t]) teams[t] = { pts: 0, gd: 0, gf: 0 };
+        }
+        const hg = m.home_score, ag = m.away_score;
+        if (hg > ag) { teams[m.home_team].pts += 3; }
+        else if (hg < ag) { teams[m.away_team].pts += 3; }
+        else { teams[m.home_team].pts += 1; teams[m.away_team].pts += 1; }
+        teams[m.home_team].gd += hg - ag; teams[m.home_team].gf += hg;
+        teams[m.away_team].gd += ag - hg; teams[m.away_team].gf += ag;
+      }
+      const sorted = Object.entries(teams).sort(([,a],[,b]) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        if (b.gd  !== a.gd)  return b.gd  - a.gd;
+        return b.gf - a.gf;
+      });
+      first  = sorted[0]?.[0];
+      second = sorted[1]?.[0];
+    }
+
     if (!first || !second) continue;
 
     await query(`INSERT INTO bonus_outcomes (pick_category, actual_teams_json) VALUES ($1,$2)

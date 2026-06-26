@@ -11,6 +11,26 @@ const WC2026_TEAMS = [
   'SUI','SWE','TUN','TUR','URY','USA','UZB','ALG',
 ];
 
+const GROUP_TEAMS: Record<string, string[]> = {
+  a: ['MEX','RSA','KOR','CZE'],
+  b: ['CAN','BIH','QAT','SUI'],
+  c: ['BRA','MAR','HAI','SCO'],
+  d: ['USA','PAR','AUS','TUR'],
+  e: ['GER','CUW','CIV','ECU'],
+  f: ['NED','JPN','SWE','TUN'],
+  g: ['BEL','EGY','IRN','NZL'],
+  h: ['ESP','CPV','KSA','URY'],
+  i: ['FRA','SEN','IRQ','NOR'],
+  j: ['ARG','ALG','AUT','JOR'],
+  k: ['POR','COD','UZB','COL'],
+  l: ['ENG','CRO','GHA','PAN'],
+};
+
+function teamsForPickType(pickType: string): string[] {
+  const m = pickType.match(/^group_([a-l])_/);
+  return m ? (GROUP_TEAMS[m[1]] ?? WC2026_TEAMS) : WC2026_TEAMS;
+}
+
 const GROUPS = ['a','b','c','d','e','f','g','h','i','j','k','l'];
 
 interface BonusSection {
@@ -135,7 +155,7 @@ export default function BonusPicksForm({ player }: Props) {
                     style={{ padding: '4px 8px', fontSize: '0.85rem', minWidth: '140px' }}
                   >
                     <option value="">— pick —</option>
-                    {WC2026_TEAMS.map(code => (
+                    {teamsForPickType(pick_type).map(code => (
                       <option key={code} value={code}>{teamName(code)} ({code})</option>
                     ))}
                   </select>
