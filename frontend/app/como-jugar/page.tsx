@@ -68,7 +68,7 @@ export default function ComoJugar() {
         <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '0.4rem' }}>
           {[
             { icon: '🎟️', label: 'Cuota de entrada', value: '$10 por persona' },
-            { icon: '🥇', label: '1er lugar',         value: '$250' },
+            { icon: '🥇', label: '1er lugar',         value: '$80' },
             { icon: '🥈', label: '2do lugar',         value: '$50' },
             { icon: '🥉', label: '3er lugar',         value: '$20' },
           ].map(p => (
