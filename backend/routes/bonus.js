@@ -70,7 +70,7 @@ router.post('/', async (req, res) => {
     return res.status(403).json({ error: 'This bonus pick is locked' });
 
   const cat = category(pick_type);
-  if (['finalist', 'semifinalist', 'quarterfinalist'].includes(cat)) {
+  if (['finalist', 'semifinalist', 'quarterfinalist', 'r16_team'].includes(cat)) {
     const { rows: existingRows } = await query(
       `SELECT id FROM bonus_picks WHERE player_id = $1 AND pick_type LIKE $2 AND team_code = $3`,
       [player_id, `${cat}_%`, team_code]
