@@ -62,6 +62,13 @@ async function pollCycle() {
           )
         `, [m.status, m.id, m.id, m.homeTeam.tla, m.awayTeam.tla, m.utcDate]);
       }
+      // Fill in team names as soon as the API has them (e.g. knockout TBD → real teams)
+      if (m.homeTeam?.tla && m.awayTeam?.tla) {
+        await query(`
+          UPDATE matches SET home_team = $1, away_team = $2
+          WHERE fd_match_id = $3 AND (home_team = 'TBD' OR away_team = 'TBD')
+        `, [m.homeTeam.tla, m.awayTeam.tla, m.id]);
+      }
       continue;
     }
 
