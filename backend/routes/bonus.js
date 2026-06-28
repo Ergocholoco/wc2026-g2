@@ -29,7 +29,7 @@ async function isBonusLocked(pickType) {
     );
     const firstMatch = rows[0];
     if (!firstMatch) return false;
-    return Date.now() >= new Date(firstMatch.kickoff_utc).getTime() - 60 * 60 * 1000;
+    return Date.now() >= new Date(firstMatch.kickoff_utc).getTime() - 10 * 60 * 1000;
   }
   const phaseMap = {
     quarterfinalist: 'r32', semifinalist: 'r16',
