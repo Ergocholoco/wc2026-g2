@@ -22,14 +22,14 @@ async function isBonusLocked(pickType) {
     if (!lastMatch) return false;
     return Date.now() >= new Date(lastMatch.kickoff_utc).getTime() - 60 * 60 * 1000;
   }
-  // advanced mode: r16 picks lock before first R32 match
+  // advanced mode: r16 picks lock 10 min before the next upcoming R32 match
   if (pickType.startsWith('r16_team_')) {
     const { rows } = await query(
-      `SELECT kickoff_utc FROM matches WHERE phase='r32' ORDER BY kickoff_utc ASC LIMIT 1`
+      `SELECT kickoff_utc FROM matches WHERE phase='r32' AND status='SCHEDULED' ORDER BY kickoff_utc ASC LIMIT 1`
     );
-    const firstMatch = rows[0];
-    if (!firstMatch) return false;
-    return Date.now() >= new Date(firstMatch.kickoff_utc).getTime() - 10 * 60 * 1000;
+    const nextMatch = rows[0];
+    if (!nextMatch) return true; // all R32 done, keep locked
+    return Date.now() >= new Date(nextMatch.kickoff_utc).getTime() - 10 * 60 * 1000;
   }
   const phaseMap = {
     quarterfinalist: 'r32', semifinalist: 'r16',
