@@ -4,7 +4,7 @@ const { refreshPlayerScore } = require('../services/scorer');
 const router = express.Router();
 
 function isLocked(kickoff_utc) {
-  return Date.now() >= new Date(kickoff_utc).getTime() - 30 * 60 * 1000;
+  return Date.now() >= new Date(kickoff_utc).getTime() - 10 * 60 * 1000;
 }
 
 router.get('/', async (req, res) => {
