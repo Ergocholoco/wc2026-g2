@@ -3,7 +3,7 @@ const { query } = require('../db/schema');
 const router = express.Router();
 
 function isLocked(kickoff_utc) {
-  return Date.now() >= new Date(kickoff_utc).getTime() - 60 * 60 * 1000;
+  return Date.now() >= new Date(kickoff_utc).getTime() - 10 * 60 * 1000;
 }
 
 router.get('/', async (req, res) => {
