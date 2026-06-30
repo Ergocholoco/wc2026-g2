@@ -32,7 +32,7 @@ async function isBonusLocked(pickType) {
     return Date.now() >= new Date(nextMatch.kickoff_utc).getTime() - 10 * 60 * 1000;
   }
   const phaseMap = {
-    quarterfinalist: 'r32', semifinalist: 'r16',
+    quarterfinalist: 'r16', semifinalist: 'r16',
     finalist: 'qf', champion: 'final', third_place: '3rd_place',
     runner_up: 'final', fourth_place: '3rd_place',
   };
