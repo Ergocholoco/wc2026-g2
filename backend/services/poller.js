@@ -83,14 +83,19 @@ async function pollCycle() {
 
     if (dbMatch.status === 'FINISHED' && dbMatch.home_score != null) continue;
 
-    let score = m.score?.fullTime;
+    // Use regularTime (90-min score) when match went to ET or penalties
+    let score = (m.score?.duration && m.score.duration !== 'REGULAR' && m.score?.regularTime?.home != null)
+      ? m.score.regularTime
+      : m.score?.fullTime;
     let winner = m.score?.winner ?? null;
 
     if (score?.home == null || score?.away == null) {
       const single = await fetchMatch(m.id);
-      if (single?.score?.fullTime?.home != null && single?.score?.fullTime?.away != null) {
-        score = single.score.fullTime;
-        winner = single.score.winner ?? null;
+      if (single) {
+        score = (single.score?.duration && single.score.duration !== 'REGULAR' && single.score?.regularTime?.home != null)
+          ? single.score.regularTime
+          : single.score?.fullTime;
+        winner = single.score?.winner ?? null;
       }
     }
 
