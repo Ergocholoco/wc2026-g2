@@ -2,7 +2,9 @@ const { query } = require('../db/schema');
 const { refreshPlayerScore, scorePhaseBonus } = require('./scorer');
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
+const FULL_RECALC_INTERVAL_MS = 3 * 60 * 60 * 1000; // every 3 hours
 let _timer = null;
+let _recalcTimer = null;
 
 async function fetchMatches() {
   const apiKey = process.env.FOOTBALL_API_KEY;
@@ -317,16 +319,28 @@ async function scoreAdvancedBonusIfComplete() {
   }
 }
 
+async function recalcAllPlayers() {
+  try {
+    const { rows } = await query('SELECT id FROM players');
+    for (const { id } of rows) await refreshPlayerScore(id);
+    console.log(`[poller] full recalc done — ${rows.length} players`);
+  } catch (e) {
+    console.error('[poller] full recalc error:', e.message);
+  }
+}
+
 async function triggerPoll() { return pollCycle(); }
 
 function startPoller() {
   pollCycle().catch(console.error);
   _timer = setInterval(() => pollCycle().catch(console.error), POLL_INTERVAL_MS);
-  console.log('[poller] started — polling every 5 min');
+  _recalcTimer = setInterval(() => recalcAllPlayers(), FULL_RECALC_INTERVAL_MS);
+  console.log('[poller] started — polling every 5 min, full recalc every 3 hours');
 }
 
 function stopPoller() {
   if (_timer) { clearInterval(_timer); _timer = null; }
+  if (_recalcTimer) { clearInterval(_recalcTimer); _recalcTimer = null; }
 }
 
 module.exports = { startPoller, stopPoller, triggerPoll };
