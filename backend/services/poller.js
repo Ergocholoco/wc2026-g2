@@ -43,6 +43,17 @@ async function fetchStandings() {
   return data.standings || [];
 }
 
+// The 90-minute score. For matches decided in ET/pens the provider fills in
+// regularTime a few minutes after fullTime appears — return null until it
+// exists rather than falling back to the post-ET fullTime.
+function ninetyMinScore(s) {
+  if (!s) return null;
+  if (s.duration && s.duration !== 'REGULAR') {
+    return (s.regularTime?.home != null && s.regularTime?.away != null) ? s.regularTime : null;
+  }
+  return (s.fullTime?.home != null && s.fullTime?.away != null) ? s.fullTime : null;
+}
+
 async function pollCycle() {
   let apiMatches;
   try {
@@ -83,25 +94,30 @@ async function pollCycle() {
     }
     if (!dbMatch) continue;
 
-    if (dbMatch.status === 'FINISHED' && dbMatch.home_score != null) continue;
-
-    // Use regularTime (90-min score) when match went to ET or penalties
-    let score = (m.score?.duration && m.score.duration !== 'REGULAR' && m.score?.regularTime?.home != null)
-      ? m.score.regularTime
-      : m.score?.fullTime;
+    let score = ninetyMinScore(m.score);
     let winner = m.score?.winner ?? null;
 
-    if (score?.home == null || score?.away == null) {
+    if (dbMatch.status === 'FINISHED' && dbMatch.home_score != null) {
+      // Reconcile: fullTime may have been stored before the provider filled in
+      // regularTime — if the 90-min score disagrees with what we stored, fix it
+      // and rescore the affected players.
+      if (score && (score.home !== dbMatch.home_score || score.away !== dbMatch.away_score)) {
+        await query(`UPDATE matches SET home_score=$1, away_score=$2, winner=$3 WHERE id=$4`,
+          [score.home, score.away, winner ?? dbMatch.winner, dbMatch.id]);
+        finishedMatchIds.add(dbMatch.id);
+      }
+      continue;
+    }
+
+    if (!score) {
       const single = await fetchMatch(m.id);
       if (single) {
-        score = (single.score?.duration && single.score.duration !== 'REGULAR' && single.score?.regularTime?.home != null)
-          ? single.score.regularTime
-          : single.score?.fullTime;
-        winner = single.score?.winner ?? null;
+        score = ninetyMinScore(single.score);
+        winner = single.score?.winner ?? winner;
       }
     }
 
-    if (score?.home == null || score?.away == null) {
+    if (!score) {
       if (dbMatch.status !== 'FINISHED') {
         await query(`UPDATE matches SET status='FINISHED', fd_match_id=$1 WHERE id=$2`, [m.id, dbMatch.id]);
       }
